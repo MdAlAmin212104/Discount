@@ -5,9 +5,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+// }
+
 datasource db {
   provider = "sqlite"
   url      = "file:dev.sqlite"
@@ -31,4 +33,148 @@ model Session {
   emailVerified Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+model Shop {
+  id           String     @id @default(cuid())
+  domain       String     @unique
+  accessToken  String
+  createdAt    DateTime   @default(now())
+  campaigns    Campaign[]
+  themeSettings ThemeSettings?
+}
+
+model Campaign {
+  id          String           @id @default(cuid())
+  shopId      String
+  shop        Shop             @relation(fields: [shopId], references: [id])
+  name        String
+  status      CampaignStatus   @default(DRAFT)
+  discountType DiscountType
+  timezone    String           @default("UTC")
+  startDate   DateTime
+  endDate     DateTime
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  stages      CampaignStage[]
+  products    CampaignProduct[]
+  activityLogs ActivityLog[]
+}
+
+model CampaignStage {
+  id           String   @id @default(cuid())
+  campaignId   String
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  stageNumber  Int
+  label        String?
+  discountValue Float
+  startDate    DateTime
+  endDate      DateTime
+  status       StageStatus @default(PENDING)
+}
+
+model CampaignProduct {
+  id           String   @id @default(cuid())
+  campaignId   String
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  targetType   TargetType
+  targetValue  String
+}
+
+model VariantPriceSnapshot {
+  id          String   @id @default(cuid())
+  shopId      String
+  campaignId  String
+  variantId   String
+  originalPrice Float
+  currentPrice  Float
+  snapshotAt  DateTime @default(now())
+
+  @@unique([shopId, campaignId, variantId])
+}
+
+model ActivityLog {
+  id         String      @id @default(cuid())
+  shopId     String
+  campaignId String?
+  campaign   Campaign?   @relation(fields: [campaignId], references: [id])
+  event      LogEvent
+  message    String
+  metadata   Json?
+  createdAt  DateTime    @default(now())
+}
+
+model ThemeSettings {
+  id              String  @id @default(cuid())
+  shopId          String  @unique
+  shop            Shop    @relation(fields: [shopId], references: [id])
+  badgeText       String  @default("Sale")
+  countdownText   String  @default("Ends in")
+  stageLabelText  String  @default("Stage")
+  fontSize        Int     @default(14)
+  fontWeight      String  @default("500")
+  salePriceColor  String  @default("#E63946")
+  originalPriceColor String @default("#6B7280")
+  badgeBg         String  @default("#E63946")
+  badgeTextColor  String  @default("#FFFFFF")
+  padding         Int     @default(12)
+  borderRadius    Int     @default(8)
+  alignment       String  @default("left")
+  customJs        String  @default("")
+}
+
+
+model SchedulerJob {
+  id         String    @id @default(cuid())
+  shopId     String
+  stageId    String    @unique
+  scheduledAt DateTime
+  status     JobStatus @default(PENDING)
+  attempts   Int       @default(0)
+  lastError  String?
+  processedAt DateTime?
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  PAUSED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIX_AMOUNT
+}
+
+enum TargetType {
+  PRODUCT
+  COLLECTION
+  TAG
+}
+
+enum StageStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+}
+
+enum LogEvent {
+  CAMPAIGN_CREATED
+  CAMPAIGN_UPDATED
+  STAGE_STARTED
+  STAGE_COMPLETED
+  PRICE_UPDATED
+  PRICE_RESTORED
+  CONFLICT_DETECTED
+  SCHEDULER_ERROR
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }

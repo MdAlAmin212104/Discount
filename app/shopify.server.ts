@@ -32,3 +32,16 @@ export const unauthenticated = shopify.unauthenticated;
 export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
 export const sessionStorage = shopify.sessionStorage;
+
+// Start background cron scheduler on server load
+if (typeof process !== "undefined" && (process.env.NODE_ENV === "production" || !(global as any).schedulerInitialized)) {
+  (global as any).schedulerInitialized = true;
+  import("./services/scheduler.server")
+    .then(({ initScheduler }) => {
+      initScheduler();
+    })
+    .catch((err) => {
+      console.error("Failed to start scheduler:", err);
+    });
+}
+

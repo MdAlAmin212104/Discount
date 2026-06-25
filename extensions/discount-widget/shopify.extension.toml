@@ -1,0 +1,4 @@
+# Learn more about configuring Theme App Extensions at https://shopify.dev/docs/apps/themes/theme-app-extensions/configuration
+name = "Discount Widget"
+type = "theme"
+uid = "d6afe511-c8e4-7eec-230c-c5eda3b571598b3eb33e"
