@@ -9,7 +9,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await getOrCreateShop(session.shop, session.accessToken || "");
 
-  const settings = await prisma.themeSettings.findUnique({ where: { shopId: shop.id } });
+  // Upsert to ensure a default record always exists
+  const settings = await prisma.themeSettings.upsert({
+    where: { shopId: shop.id },
+    create: { shopId: shop.id },
+    update: {},
+  });
   return { settings };
 };
 
@@ -19,23 +24,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
 
   try {
-    const updated = await prisma.themeSettings.update({
+    const data = {
+      badgeText: formData.get("badgeText") as string,
+      countdownText: formData.get("countdownText") as string,
+      stageLabelText: formData.get("stageLabelText") as string,
+      customJs: (formData.get("customJs") as string) || "",
+      fontSize: parseInt((formData.get("fontSize") as string) || "14"),
+      fontWeight: formData.get("fontWeight") as string,
+      salePriceColor: formData.get("salePriceColor") as string,
+      originalPriceColor: formData.get("originalPriceColor") as string,
+      badgeBg: formData.get("badgeBg") as string,
+      badgeTextColor: formData.get("badgeTextColor") as string,
+      padding: parseInt((formData.get("padding") as string) || "12"),
+      borderRadius: parseInt((formData.get("borderRadius") as string) || "8"),
+      alignment: formData.get("alignment") as string,
+    };
+    const updated = await prisma.themeSettings.upsert({
       where: { shopId: shop.id },
-      data: {
-        badgeText: formData.get("badgeText") as string,
-        countdownText: formData.get("countdownText") as string,
-        stageLabelText: formData.get("stageLabelText") as string,
-        customJs: formData.get("customJs") as string || "",
-        fontSize: parseInt(formData.get("fontSize") as string || "14"),
-        fontWeight: formData.get("fontWeight") as string,
-        salePriceColor: formData.get("salePriceColor") as string,
-        originalPriceColor: formData.get("originalPriceColor") as string,
-        badgeBg: formData.get("badgeBg") as string,
-        badgeTextColor: formData.get("badgeTextColor") as string,
-        padding: parseInt(formData.get("padding") as string || "12"),
-        borderRadius: parseInt(formData.get("borderRadius") as string || "8"),
-        alignment: formData.get("alignment") as string,
-      },
+      create: { shopId: shop.id, ...data },
+      update: data,
     });
     return { success: true, settings: updated };
   } catch (err: any) {
@@ -92,19 +99,21 @@ export default function ThemeSettingsPage() {
   const TABS = ["Content", "Typography", "Colors", "Layout", "Live Preview"];
 
   return (
-    <s-page title="Theme Customization" subtitle="Customize the appearance of discount widgets on your storefront">
+    <s-page heading="Theme Customization" subtitle="Customize the appearance of discount widgets on your storefront">
       <s-button slot="primary-action" variant="primary" onClick={handleSave}>
         Save Settings
       </s-button>
 
       {/* Tab Bar */}
-      <s-stack direction="inline" gap="small" style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px" }}>
-        {TABS.map((tab, i) => (
-          <s-button key={tab} variant={activeTab === i ? "primary" : "tertiary"} onClick={() => setActiveTab(i)}>
-            {tab}
-          </s-button>
-        ))}
-      </s-stack>
+      <div style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px", paddingBottom: "8px" }}>
+        <s-stack direction="inline" gap="small">
+          {TABS.map((tab, i) => (
+            <s-button key={tab} variant={activeTab === i ? "primary" : "tertiary"} onClick={() => setActiveTab(i)}>
+              {tab}
+            </s-button>
+          ))}
+        </s-stack>
+      </div>
 
       {/* TAB 1: Content */}
       {activeTab === 0 && (
@@ -114,13 +123,33 @@ export default function ThemeSettingsPage() {
             <s-text-field label="Badge Text" value={badgeText} onChange={(e: any) => setBadgeText(e.currentTarget.value)} />
             <s-text-field label="Countdown Text" value={countdownText} onChange={(e: any) => setCountdownText(e.currentTarget.value)} />
             <s-text-field label="Stage Label Text" value={stageLabelText} onChange={(e: any) => setStageLabelText(e.currentTarget.value)} />
-            <s-text-field
-              label="Custom Add-to-Cart JS Override"
-              multiline="4"
-              value={customJs}
-              onChange={(e: any) => setCustomJs(e.currentTarget.value)}
-              helpText="Receives { variantId, quantity, form }. Overrides default cart submission."
-            />
+            
+            <div>
+              <label style={{ fontSize: "13px", fontWeight: 500, color: "var(--p-color-text, #303030)", marginBottom: "4px", display: "block" }}>
+                Custom Add-to-Cart JS Override
+              </label>
+              <textarea
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid var(--p-color-border, #e1e3e5)",
+                  borderRadius: "6px",
+                  fontFamily: "inherit",
+                  fontSize: "14px",
+                  boxSizing: "border-box",
+                  backgroundColor: "var(--p-color-bg-surface, #ffffff)",
+                  color: "var(--p-color-text, #303030)",
+                  outline: "none",
+                  resize: "vertical"
+                }}
+                rows={4}
+                value={customJs}
+                onChange={(e) => setCustomJs(e.target.value)}
+              />
+              <div style={{ fontSize: "12px", color: "var(--p-color-text-secondary, #616161)", marginTop: "4px" }}>
+                Receives {"{ variantId, quantity, form }"}. Overrides default cart submission.
+              </div>
+            </div>
           </s-stack>
         </s-grid>
       )}
@@ -220,12 +249,12 @@ export default function ThemeSettingsPage() {
         <s-grid>
           <s-stack direction="block" gap="large">
             <s-heading>Live Storefront Preview</s-heading>
-            <s-text tone="subdued">Real-time preview of how the widget looks on your store's product pages.</s-text>
+            <div style={{ color: "var(--p-color-text-secondary, #616161)", fontSize: "14px" }}>
+              Real-time preview of how the widget looks on your store's product pages.
+            </div>
 
             <s-stack
               padding="large"
-              background="subdued"
-              border-radius="large"
               align-items="center"
               justify-content="center"
             >

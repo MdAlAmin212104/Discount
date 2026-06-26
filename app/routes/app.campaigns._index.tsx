@@ -21,12 +21,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 const STATUS_TABS = ["ALL", "ACTIVE", "SCHEDULED", "DRAFT", "COMPLETED"];
 
 function StatusBadge({ status }: { status: CampaignStatus }) {
-  const toneMap: Record<string, string> = {
+  const toneMap: Record<string, "info" | "auto" | "neutral" | "success" | "caution" | "warning" | "critical"> = {
     ACTIVE: "success",
     SCHEDULED: "info",
     DRAFT: "neutral",
     COMPLETED: "success",
-    PAUSED: "attention",
+    PAUSED: "caution",
   };
   return <s-badge tone={toneMap[status] ?? "neutral"}>{status}</s-badge>;
 }
@@ -41,7 +41,7 @@ export default function CampaignsList() {
   );
 
   return (
-    <s-page title="Campaigns">
+    <s-page heading="Campaigns">
       <s-button
         slot="primary-action"
         variant="primary"
@@ -51,22 +51,24 @@ export default function CampaignsList() {
       </s-button>
 
       {/* Tab Bar */}
-      <s-stack direction="inline" gap="small" style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px" }}>
-        {STATUS_TABS.map((tab, i) => (
-          <s-button
-            key={tab}
-            variant={activeTab === i ? "primary" : "tertiary"}
-            onClick={() => setActiveTab(i)}
-          >
-            {tab.charAt(0) + tab.slice(1).toLowerCase()}
-          </s-button>
-        ))}
-      </s-stack>
+      <div style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px", paddingBottom: "8px" }}>
+        <s-stack direction="inline" gap="small">
+          {STATUS_TABS.map((tab, i) => (
+            <s-button
+              key={tab}
+              variant={activeTab === i ? "primary" : "tertiary"}
+              onClick={() => setActiveTab(i)}
+            >
+              {tab.charAt(0) + tab.slice(1).toLowerCase()}
+            </s-button>
+          ))}
+        </s-stack>
+      </div>
 
       <s-grid padding="none">
         {filtered.length === 0 ? (
           <s-stack direction="block" gap="base" align-items="center" padding="large-200">
-            <s-text tone="subdued">No campaigns found for the selected view.</s-text>
+            <div style={{ color: "var(--p-color-text-secondary, #616161)", fontSize: "14px" }}>No campaigns found for the selected view.</div>
             <s-button variant="primary" onClick={() => navigate("/app/campaigns/new")}>
               Create campaign
             </s-button>
@@ -77,7 +79,7 @@ export default function CampaignsList() {
               <tr style={{ borderBottom: "1px solid var(--p-border-subdued)", textAlign: "left" }}>
                 {["Campaign Name", "Status", "Type", "Stages", "Date Range", "Actions"].map((h) => (
                   <th key={h} style={{ padding: "12px 16px" }}>
-                    <s-text font-weight="semibold" variant="bodySm">{h}</s-text>
+                    <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--p-color-text-secondary, #616161)" }}>{h}</span>
                   </th>
                 ))}
               </tr>
@@ -89,27 +91,26 @@ export default function CampaignsList() {
                   style={{ borderBottom: "1px solid var(--p-border-subdued)" }}
                 >
                   <td style={{ padding: "12px 16px" }}>
-                    <s-text font-weight="semibold">{campaign.name}</s-text>
+                    <span style={{ fontWeight: 600, fontSize: "14px" }}>{campaign.name}</span>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     <StatusBadge status={campaign.status} />
                   </td>
                   <td style={{ padding: "12px 16px" }}>
-                    <s-text>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</s-text>
+                    <span style={{ fontSize: "14px" }}>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</span>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
-                    <s-text>{campaign.stages.length} stages</s-text>
+                    <span style={{ fontSize: "14px" }}>{campaign.stages.length} stages</span>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
-                    <s-text>
+                    <span style={{ fontSize: "14px" }}>
                       {new Date(campaign.startDate).toLocaleDateString()} -{" "}
                       {new Date(campaign.endDate).toLocaleDateString()}
-                    </s-text>
+                    </span>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     <s-button
                       variant="secondary"
-                      icon="EditIcon"
                       onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
                     >
                       Edit

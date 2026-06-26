@@ -60,6 +60,7 @@ model Campaign {
   stages      CampaignStage[]
   products    CampaignProduct[]
   activityLogs ActivityLog[]
+  priceSnapshots VariantPriceSnapshot[]
 }
 
 model CampaignStage {
@@ -86,6 +87,7 @@ model VariantPriceSnapshot {
   id          String   @id @default(cuid())
   shopId      String
   campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   variantId   String
   originalPrice Float
   currentPrice  Float

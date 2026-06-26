@@ -117,7 +117,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const toneMap: Record<string, string> = { ACTIVE: "success", SCHEDULED: "info", DRAFT: "neutral", COMPLETED: "success", PAUSED: "attention" };
+  const toneMap: Record<string, "info" | "auto" | "neutral" | "success" | "caution" | "warning" | "critical"> = {
+    ACTIVE: "success",
+    SCHEDULED: "info",
+    DRAFT: "neutral",
+    COMPLETED: "success",
+    PAUSED: "caution",
+  };
   return <s-badge tone={toneMap[status] ?? "neutral"}>{status}</s-badge>;
 }
 
@@ -141,7 +147,7 @@ export default function CampaignDetail() {
   const tabs = ["Details & Stages", `Conflicts (${conflicts.length})`, "Activity Logs"];
 
   return (
-    <s-page title={campaign.name}>
+    <s-page heading={campaign.name}>
       <s-button slot="back-action" variant="tertiary" onClick={() => navigate("/app/campaigns")}>Campaigns</s-button>
 
       {(campaign.status === "ACTIVE" || campaign.status === "SCHEDULED") && (
@@ -170,13 +176,15 @@ export default function CampaignDetail() {
       </s-stack>
 
       {/* Tab Bar */}
-      <s-stack direction="inline" gap="small" style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px", marginTop: "16px" }}>
-        {tabs.map((tab, i) => (
-          <s-button key={tab} variant={activeTab === i ? "primary" : "tertiary"} onClick={() => setActiveTab(i)}>
-            {tab}
-          </s-button>
-        ))}
-      </s-stack>
+      <div style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px", marginTop: "16px", paddingBottom: "8px" }}>
+        <s-stack direction="inline" gap="small">
+          {tabs.map((tab, i) => (
+            <s-button key={tab} variant={activeTab === i ? "primary" : "tertiary"} onClick={() => setActiveTab(i)}>
+              {tab}
+            </s-button>
+          ))}
+        </s-stack>
+      </div>
 
       {/* TAB 1: Details */}
       {activeTab === 0 && (
@@ -186,26 +194,26 @@ export default function CampaignDetail() {
               <s-heading>Campaign Info</s-heading>
               <s-stack direction="inline" gap="large">
                 <s-stack direction="block" gap="none">
-                  <s-text font-weight="semibold">Type</s-text>
-                  <s-text>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</s-text>
+                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>Type</span>
+                  <span style={{ fontSize: "14px" }}>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</span>
                 </s-stack>
                 <s-stack direction="block" gap="none">
-                  <s-text font-weight="semibold">Timezone</s-text>
-                  <s-text>{campaign.timezone}</s-text>
+                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>Timezone</span>
+                  <span style={{ fontSize: "14px" }}>{campaign.timezone}</span>
                 </s-stack>
                 <s-stack direction="block" gap="none">
-                  <s-text font-weight="semibold">Start</s-text>
-                  <s-text>{new Date(campaign.startDate).toLocaleString()}</s-text>
+                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>Start</span>
+                  <span style={{ fontSize: "14px" }}>{new Date(campaign.startDate).toLocaleString()}</span>
                 </s-stack>
                 <s-stack direction="block" gap="none">
-                  <s-text font-weight="semibold">End</s-text>
-                  <s-text>{new Date(campaign.endDate).toLocaleString()}</s-text>
+                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>End</span>
+                  <span style={{ fontSize: "14px" }}>{new Date(campaign.endDate).toLocaleString()}</span>
                 </s-stack>
               </s-stack>
               {campaign.notes && (
                 <s-stack direction="block" gap="none">
-                  <s-text font-weight="semibold">Notes</s-text>
-                  <s-text tone="subdued">{campaign.notes}</s-text>
+                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>Notes</span>
+                  <div style={{ color: "var(--p-color-text-secondary, #616161)", fontSize: "14px" }}>{campaign.notes}</div>
                 </s-stack>
               )}
             </s-stack>
@@ -219,7 +227,7 @@ export default function CampaignDetail() {
                   <tr style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
                     {["#", "Label", "Discount", "Start", "End", "Status"].map((h) => (
                       <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>
-                        <s-text font-weight="semibold" variant="bodySm">{h}</s-text>
+                        <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--p-color-text-secondary, #616161)" }}>{h}</span>
                       </th>
                     ))}
                   </tr>
@@ -227,13 +235,13 @@ export default function CampaignDetail() {
                 <tbody>
                   {campaign.stages.map((stage) => (
                     <tr key={stage.id} style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                      <td style={{ padding: "8px 12px" }}><s-text>{stage.stageNumber}</s-text></td>
-                      <td style={{ padding: "8px 12px" }}><s-text>{stage.label || "—"}</s-text></td>
+                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{stage.stageNumber}</span></td>
+                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{stage.label || "—"}</span></td>
                       <td style={{ padding: "8px 12px" }}>
-                        <s-text>{stage.discountValue}{campaign.discountType === "PERCENTAGE" ? "%" : "$"}</s-text>
+                        <span style={{ fontSize: "14px" }}>{stage.discountValue}{campaign.discountType === "PERCENTAGE" ? "%" : "$"}</span>
                       </td>
-                      <td style={{ padding: "8px 12px" }}><s-text>{new Date(stage.startDate).toLocaleDateString()}</s-text></td>
-                      <td style={{ padding: "8px 12px" }}><s-text>{new Date(stage.endDate).toLocaleDateString()}</s-text></td>
+                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(stage.startDate).toLocaleDateString()}</span></td>
+                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(stage.endDate).toLocaleDateString()}</span></td>
                       <td style={{ padding: "8px 12px" }}>
                         <s-badge tone={stage.status === "ACTIVE" ? "success" : stage.status === "COMPLETED" ? "success" : "info"}>
                           {stage.status}
@@ -253,9 +261,9 @@ export default function CampaignDetail() {
         <s-grid>
           <s-stack direction="block" gap="base">
             <s-heading>Conflict Detection Log</s-heading>
-            <s-text tone="subdued">
+            <div style={{ color: "var(--p-color-text-secondary, #616161)", fontSize: "14px" }}>
               When multiple campaigns target the same variants, the system resolves by applying the best price.
-            </s-text>
+            </div>
             {conflicts.length === 0 ? (
               <s-banner tone="success">No price conflicts detected for this campaign.</s-banner>
             ) : (
@@ -264,7 +272,7 @@ export default function CampaignDetail() {
                   <tr style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
                     {["Date/Time", "Variant ID", "Message"].map((h) => (
                       <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>
-                        <s-text font-weight="semibold" variant="bodySm">{h}</s-text>
+                        <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--p-color-text-secondary, #616161)" }}>{h}</span>
                       </th>
                     ))}
                   </tr>
@@ -272,11 +280,11 @@ export default function CampaignDetail() {
                 <tbody>
                   {conflicts.map((log) => (
                     <tr key={log.id} style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                      <td style={{ padding: "8px 12px" }}><s-text>{new Date(log.createdAt).toLocaleString()}</s-text></td>
+                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(log.createdAt).toLocaleString()}</span></td>
                       <td style={{ padding: "8px 12px" }}>
                         <s-badge>{((log.metadata as any)?.variantId ?? "").split("/").pop()}</s-badge>
                       </td>
-                      <td style={{ padding: "8px 12px" }}><s-text>{log.message}</s-text></td>
+                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{log.message}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -292,28 +300,34 @@ export default function CampaignDetail() {
           <s-stack direction="block" gap="base">
             <s-heading>Activity Logs</s-heading>
             {logs.length === 0 ? (
-              <s-text tone="subdued">No activity logs yet.</s-text>
+              <div style={{ color: "var(--p-color-text-secondary, #616161)", fontSize: "14px" }}>No activity logs yet.</div>
             ) : (
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
                     {["Date/Time", "Event", "Message"].map((h) => (
                       <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>
-                        <s-text font-weight="semibold" variant="bodySm">{h}</s-text>
+                        <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--p-color-text-secondary, #616161)" }}>{h}</span>
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {logs.map((log) => {
-                    const toneMap: Record<string, string> = { PRICE_UPDATED: "success", PRICE_RESTORED: "success", SCHEDULER_ERROR: "critical", STAGE_STARTED: "info", STAGE_COMPLETED: "info" };
+                    const toneMap: Record<string, "info" | "auto" | "neutral" | "success" | "caution" | "warning" | "critical"> = {
+                      PRICE_UPDATED: "success",
+                      PRICE_RESTORED: "success",
+                      SCHEDULER_ERROR: "critical",
+                      STAGE_STARTED: "info",
+                      STAGE_COMPLETED: "info"
+                    };
                     return (
                       <tr key={log.id} style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                        <td style={{ padding: "8px 12px" }}><s-text>{new Date(log.createdAt).toLocaleString()}</s-text></td>
+                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(log.createdAt).toLocaleString()}</span></td>
                         <td style={{ padding: "8px 12px" }}>
                           <s-badge tone={toneMap[log.event] ?? "neutral"}>{log.event}</s-badge>
                         </td>
-                        <td style={{ padding: "8px 12px" }}><s-text>{log.message}</s-text></td>
+                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{log.message}</span></td>
                       </tr>
                     );
                   })}
