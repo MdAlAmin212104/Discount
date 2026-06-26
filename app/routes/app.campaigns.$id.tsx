@@ -162,6 +162,12 @@ export default function CampaignDetail() {
       )}
       <s-button
         slot="secondary-action"
+        onClick={() => navigate(`/app/campaigns/new?id=${campaign.id}`)}
+      >
+        Edit Campaign
+      </s-button>
+      <s-button
+        slot="secondary-action"
         tone="critical"
         onClick={() => {
           if (confirm("Delete this campaign? Prices will be restored.")) submit({ intent: "DELETE" }, { method: "POST" });
