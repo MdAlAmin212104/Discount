@@ -99,7 +99,7 @@ export default function ThemeSettingsPage() {
   const TABS = ["Content", "Typography", "Colors", "Layout", "Live Preview"];
 
   return (
-    <s-page heading="Theme Customization" subtitle="Customize the appearance of discount widgets on your storefront">
+    <s-page heading="Theme Customization">
       <s-button slot="primary-action" variant="primary" onClick={handleSave}>
         Save Settings
       </s-button>

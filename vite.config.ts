@@ -52,6 +52,9 @@ export default defineConfig({
     reactRouter(),
     tsconfigPaths(),
   ],
+  resolve: {
+    dedupe: ["@shopify/polaris"],
+  },
   build: {
     assetsInlineLimit: 0,
   },
