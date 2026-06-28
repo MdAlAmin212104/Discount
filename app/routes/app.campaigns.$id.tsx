@@ -239,22 +239,44 @@ export default function CampaignDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {campaign.stages.map((stage) => (
-                    <tr key={stage.id} style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{stage.stageNumber}</span></td>
-                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{stage.label || "—"}</span></td>
-                      <td style={{ padding: "8px 12px" }}>
-                        <span style={{ fontSize: "14px" }}>{stage.discountValue}{campaign.discountType === "PERCENTAGE" ? "%" : "$"}</span>
-                      </td>
-                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(stage.startDate).toLocaleDateString()}</span></td>
-                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(stage.endDate).toLocaleDateString()}</span></td>
-                      <td style={{ padding: "8px 12px" }}>
-                        <s-badge tone={stage.status === "ACTIVE" ? "success" : stage.status === "COMPLETED" ? "success" : "info"}>
-                          {stage.status}
-                        </s-badge>
-                      </td>
-                    </tr>
-                  ))}
+                  {campaign.stages.map((stage) => {
+                    let stageLabelNode = <span>{stage.label || "—"}</span>;
+                    if (stage.label) {
+                      try {
+                        const parsed = JSON.parse(stage.label);
+                        if (parsed && typeof parsed === "object" && parsed.isCirclePhase) {
+                          stageLabelNode = (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                              <span style={{ fontWeight: 600, fontSize: "14px" }}>{parsed.phaseTitle || parsed.label}</span>
+                              <span style={{ fontSize: "12px", color: "#616161" }}>
+                                Badge Label: "{parsed.label}"
+                                {parsed.discountCode ? ` | Code: ${parsed.discountCode}` : ""}
+                                {parsed.visible === false ? " | Hidden" : " | Visible"}
+                                {parsed.autoApply ? " | Auto-applied" : ""}
+                              </span>
+                            </div>
+                          );
+                        }
+                      } catch (e) {}
+                    }
+
+                    return (
+                      <tr key={stage.id} style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
+                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{stage.stageNumber}</span></td>
+                        <td style={{ padding: "8px 12px" }}>{stageLabelNode}</td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <span style={{ fontSize: "14px" }}>{stage.discountValue}{campaign.discountType === "PERCENTAGE" ? "%" : "$"}</span>
+                        </td>
+                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(stage.startDate).toLocaleDateString()}</span></td>
+                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(stage.endDate).toLocaleDateString()}</span></td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <s-badge tone={stage.status === "ACTIVE" ? "success" : stage.status === "COMPLETED" ? "success" : "info"}>
+                            {stage.status}
+                          </s-badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </s-stack>

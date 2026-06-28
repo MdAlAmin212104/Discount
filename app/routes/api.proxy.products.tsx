@@ -67,6 +67,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const activeStage = activeCampaign.stages[0];
 
+    let stageLabel = activeStage?.label || (activeStage ? `Stage ${activeStage.stageNumber}` : "");
+    let isCirclePhase = false;
+    let phaseTitle = "";
+    let discountCode = "";
+    let shippingNoteLeft = "";
+    let shippingNoteRight = "";
+    let visible = true;
+    let autoApply = false;
+
+    if (activeStage?.label) {
+      try {
+        const parsed = JSON.parse(activeStage.label);
+        if (parsed && typeof parsed === "object" && parsed.isCirclePhase) {
+          stageLabel = parsed.label || `Stage ${activeStage.stageNumber}`;
+          isCirclePhase = true;
+          phaseTitle = parsed.phaseTitle || "";
+          discountCode = parsed.discountCode || "";
+          shippingNoteLeft = parsed.shippingNoteLeft || "";
+          shippingNoteRight = parsed.shippingNoteRight || "";
+          visible = parsed.visible !== false;
+          autoApply = parsed.autoApply === true;
+        }
+      } catch (e) {
+        // Label is not JSON or not standard, keep defaults
+      }
+    }
+
     // 3. Fetch all variant snapshots for this active campaign
     const snapshots = await prisma.variantPriceSnapshot.findMany({
       where: {
@@ -79,7 +106,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return new Response(
         JSON.stringify({
           campaignName: activeCampaign.name,
-          stageLabel: activeStage?.label || `Stage ${activeStage?.stageNumber}`,
+          stageLabel,
+          isCirclePhase,
+          phaseTitle,
+          discountCode,
+          shippingNoteLeft,
+          shippingNoteRight,
+          visible,
+          autoApply,
           products: [],
           settings: shop.themeSettings,
         }),
@@ -152,7 +186,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return new Response(
       JSON.stringify({
         campaignName: activeCampaign.name,
-        stageLabel: activeStage?.label || `Stage ${activeStage?.stageNumber}`,
+        stageLabel,
+        isCirclePhase,
+        phaseTitle,
+        discountCode,
+        shippingNoteLeft,
+        shippingNoteRight,
+        visible,
+        autoApply,
         products,
         settings: shop.themeSettings,
       }),

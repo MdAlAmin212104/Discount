@@ -12,17 +12,19 @@
     container.style.setProperty("--items-row", itemsPerRow);
 
     let activeSettings = null;
+    let activeCampaignDetails = null;
 
     // 1. Fetch active campaign products via App Proxy
     fetch(`/apps/discount-showcase/products?shop=${shop}`)
       .then(res => res.json())
       .then(data => {
-        if (data.error || !data.products || data.products.length === 0) {
+        if (data.error || !data.products || data.products.length === 0 || data.visible === false) {
           container.innerHTML = '<div class="discount-showcase-loading">No active promotional campaigns at this time.</div>';
           return;
         }
 
         activeSettings = data.settings || {};
+        activeCampaignDetails = data;
         applyThemeSettings(activeSettings);
 
         renderShowcase(data, showCountdown, showStageLabel);
@@ -149,6 +151,44 @@
         stageBadge.style.display = "none";
       }
 
+      // Populate Circle Member Offer fields
+      const phaseTitleEl = document.getElementById("modal-phase-title");
+      const shippingNotesEl = document.getElementById("modal-shipping-notes");
+      const shippingLeftEl = document.getElementById("modal-shipping-left");
+      const shippingRightEl = document.getElementById("modal-shipping-right");
+      const discountCodeEl = document.getElementById("modal-discount-code");
+      const codeTextEl = document.getElementById("modal-code-text");
+      const codeStatusEl = document.getElementById("modal-code-status");
+
+      if (activeCampaignDetails && activeCampaignDetails.isCirclePhase) {
+        if (activeCampaignDetails.phaseTitle) {
+          phaseTitleEl.innerText = activeCampaignDetails.phaseTitle;
+          phaseTitleEl.style.display = "block";
+        } else {
+          phaseTitleEl.style.display = "none";
+        }
+
+        if (activeCampaignDetails.shippingNoteLeft || activeCampaignDetails.shippingNoteRight) {
+          shippingLeftEl.innerText = activeCampaignDetails.shippingNoteLeft || "";
+          shippingRightEl.innerText = activeCampaignDetails.shippingNoteRight || "";
+          shippingNotesEl.style.display = "flex";
+        } else {
+          shippingNotesEl.style.display = "none";
+        }
+
+        if (activeCampaignDetails.discountCode) {
+          codeTextEl.innerText = activeCampaignDetails.discountCode;
+          codeStatusEl.innerText = activeCampaignDetails.autoApply ? "Auto-Applied" : "Copy Code";
+          discountCodeEl.style.display = "flex";
+        } else {
+          discountCodeEl.style.display = "none";
+        }
+      } else {
+        if (phaseTitleEl) phaseTitleEl.style.display = "none";
+        if (shippingNotesEl) shippingNotesEl.style.display = "none";
+        if (discountCodeEl) discountCodeEl.style.display = "none";
+      }
+
       // Hide countdown by default, updated when campaign is loaded
       const countdownEl = document.getElementById("modal-countdown");
       countdownEl.style.display = "none";
@@ -216,7 +256,11 @@
       })
       .then(res => res.json())
       .then(cartData => {
-        window.location.href = '/cart';
+        if (activeCampaignDetails && activeCampaignDetails.autoApply && activeCampaignDetails.discountCode) {
+          window.location.href = `/discount/${encodeURIComponent(activeCampaignDetails.discountCode)}?redirect=/cart`;
+        } else {
+          window.location.href = '/cart';
+        }
       })
       .catch(err => {
         console.error("Add to cart error:", err);
