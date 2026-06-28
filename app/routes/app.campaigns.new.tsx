@@ -13,6 +13,7 @@ export default function AdditionalPage() {
             />
           </s-stack>
         </s-card>
+        <s-divider/>
 
         <s-box paddingBlock="base">
           <s-choice-list label="Discount Type" name="discount">
@@ -24,8 +25,9 @@ export default function AdditionalPage() {
             </s-choice>
           </s-choice-list>
         </s-box>
+        <s-divider/>
 
-        <s-box>
+        <s-box paddingBlock="base">
           <s-choice-list label="Select product option" name="product">
             <s-choice value="products" selected>
               Products
@@ -38,8 +40,10 @@ export default function AdditionalPage() {
             </s-choice>
           </s-choice-list>
         </s-box>
+        <s-divider/>
 
-        <s-table>
+        <s-box paddingBlock="base">
+          <s-table>
           <s-grid slot="filters" gap="small-200" gridTemplateColumns="1fr auto">
             <s-text-field
               label="Search puzzles"
@@ -144,9 +148,13 @@ export default function AdditionalPage() {
             </s-table-row>
           </s-table-body>
         </s-table>
+          
+        </s-box>
 
+        <s-divider/>
+        
 
-        <s-grid gridTemplateColumns="1fr auto" gap="small-400" alignItems="start">
+        <s-grid paddingBlock="base" gridTemplateColumns="1fr auto" gap="small-400" alignItems="start">
           <s-grid
             gridTemplateColumns="@container (inline-size <= 480px) 1fr, auto auto"
             gap="base"
@@ -163,8 +171,8 @@ export default function AdditionalPage() {
 
         </s-grid>
 
-
-        <s-text-field label="Phase Title (Admin & Widget)" placeholder="Inner Circle Access"></s-text-field>
+        <s-box paddingBlock="base">
+          <s-text-field label="Phase Title (Admin & Widget)" placeholder="Inner Circle Access"></s-text-field>
         <s-text-field label="Badge Label" placeholder="Drop 1 — open now"></s-text-field>
 
         <s-number-field
@@ -511,6 +519,10 @@ export default function AdditionalPage() {
             />
           </s-grid-item>
         </s-grid>
+        </s-box>
+
+
+        
 
       </form>
       </s-section>
