@@ -1,8 +1,10 @@
 export default function AdditionalPage() {
   return (
     <s-page heading="Additional page">
-      <form data-save-bar>
-      <s-section heading="Campaign Information">
+      
+
+      <s-section heading="companigne create form">
+        <form data-save-bar>
         <s-card>
           <s-stack direction="block" gap="base">
             <s-text-field
@@ -22,9 +24,7 @@ export default function AdditionalPage() {
             </s-choice>
           </s-choice-list>
         </s-box>
-      </s-section>
 
-      <s-section heading="Product Selection" padding="base">
         <s-box>
           <s-choice-list label="Select product option" name="product">
             <s-choice value="products" selected>
@@ -144,10 +144,8 @@ export default function AdditionalPage() {
             </s-table-row>
           </s-table-body>
         </s-table>
-      </s-section>
 
 
-      <s-section heading="phase added informate on this section">
         <s-grid gridTemplateColumns="1fr auto" gap="small-400" alignItems="start">
           <s-grid
             gridTemplateColumns="@container (inline-size <= 480px) 1fr, auto auto"
@@ -164,10 +162,8 @@ export default function AdditionalPage() {
           </s-grid>
 
         </s-grid>
-      </s-section>
 
 
-      <s-section heading="phase 1">
         <s-text-field label="Phase Title (Admin & Widget)" placeholder="Inner Circle Access"></s-text-field>
         <s-text-field label="Badge Label" placeholder="Drop 1 — open now"></s-text-field>
 
@@ -341,10 +337,7 @@ export default function AdditionalPage() {
             />
           </s-grid-item>
         </s-grid>
-      </s-section>
 
-
-      <s-section heading="phase 2">
         <s-text-field label="Phase Title (Admin & Widget)" placeholder="Inner Circle Access"></s-text-field>
         <s-text-field label="Badge Label" placeholder="Drop 1 — open now"></s-text-field>
 
@@ -518,6 +511,8 @@ export default function AdditionalPage() {
             />
           </s-grid-item>
         </s-grid>
+
+      </form>
       </s-section>
 
       <s-section slot="aside" heading="Live Preview">
@@ -534,7 +529,7 @@ export default function AdditionalPage() {
           </s-stack>
         </s-card>
       </s-section>
-      </form>
+      
     </s-page>
   );
 }
