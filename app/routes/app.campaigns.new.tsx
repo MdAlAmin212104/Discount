@@ -747,7 +747,6 @@ export default function AdditionalPage() {
       </s-button>
 
       <s-section heading="Campaign Details">
-        <form data-save-bar>
 
           {/* ── Campaign Name ── */}
           <s-card>
@@ -1152,7 +1151,6 @@ export default function AdditionalPage() {
           <s-box paddingBlock="base">
             <s-button icon="plus" onClick={handleAddMorePhase}>Add Phase</s-button>
           </s-box>
-        </form>
       </s-section>
 
       {/* ── Aside Summary ── */}
