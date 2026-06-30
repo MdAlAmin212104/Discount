@@ -26,9 +26,10 @@ function StatusBadge({ status }: { status: CampaignStatus }) {
     SCHEDULED: "info",
     DRAFT: "neutral",
     COMPLETED: "success",
-    PAUSED: "caution",
+    PAUSED: "neutral",
   };
-  return <s-badge tone={toneMap[status] ?? "neutral"}>{status}</s-badge>;
+  const label = status === "PAUSED" ? "DRAFT" : status;
+  return <s-badge tone={toneMap[status] ?? "neutral"}>{label}</s-badge>;
 }
 
 function useWebComponentChoice(
@@ -153,7 +154,8 @@ export default function CampaignsList() {
 
   // Filter campaigns
   const filtered = campaigns.filter((c) => {
-    const matchesTab = activeTab === 0 ? true : c.status === STATUS_TABS[activeTab];
+    const mappedStatus = c.status === "PAUSED" ? "DRAFT" : c.status;
+    const matchesTab = activeTab === 0 ? true : mappedStatus === STATUS_TABS[activeTab];
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesTab && matchesSearch;
   });
@@ -289,25 +291,9 @@ export default function CampaignsList() {
                     {paginatedCampaigns.map((campaign) => (
                       <s-table-row key={campaign.id}>
                         <s-table-cell>
-                          <s-stack direction="inline" gap="small" alignItems="center">
-                            <s-clickable
-                              onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
-                              accessibilityLabel={`View campaign ${campaign.name}`}
-                              border="base"
-                              borderRadius="base"
-                              overflow="hidden"
-                              inlineSize="40px"
-                              blockSize="40px"
-                            >
-                              <s-image
-                                objectFit="cover"
-                                src="https://picsum.photos/id/29/80/80"
-                              />
-                            </s-clickable>
-                            <s-link onClick={() => navigate(`/app/campaigns/${campaign.id}`)}>
-                              {campaign.name}
-                            </s-link>
-                          </s-stack>
+                          <s-link onClick={() => navigate(`/app/campaigns/${campaign.id}`)}>
+                            {campaign.name}
+                          </s-link>
                         </s-table-cell>
                         <s-table-cell>
                           <StatusBadge status={campaign.status} />
@@ -326,6 +312,7 @@ export default function CampaignsList() {
                           <s-button
                             variant="secondary"
                             onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
+                            icon="edit"
                           >
                             Edit
                           </s-button>

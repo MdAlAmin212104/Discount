@@ -82,10 +82,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     try {
       await restoreVariants();
       await prisma.variantPriceSnapshot.deleteMany({ where: { campaignId: campaign.id } });
-      await prisma.campaign.update({ where: { id: campaign.id }, data: { status: CampaignStatus.PAUSED } });
+      await prisma.campaign.update({ where: { id: campaign.id }, data: { status: CampaignStatus.DRAFT } });
       await prisma.campaignStage.updateMany({ where: { campaignId: campaign.id }, data: { status: StageStatus.PENDING } });
       await prisma.schedulerJob.deleteMany({ where: { stageId: { in: campaign.stages.map((s) => s.id) } } });
-      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" paused.` } });
+      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" paused (moved to draft).` } });
       return { success: true };
     } catch (e: any) { return { error: e.message }; }
   }
@@ -122,9 +122,10 @@ function StatusBadge({ status }: { status: string }) {
     SCHEDULED: "info",
     DRAFT: "neutral",
     COMPLETED: "success",
-    PAUSED: "caution",
+    PAUSED: "neutral",
   };
-  return <s-badge tone={toneMap[status] ?? "neutral"}>{status}</s-badge>;
+  const label = status === "PAUSED" ? "DRAFT" : status;
+  return <s-badge tone={toneMap[status] ?? "neutral"}>{label}</s-badge>;
 }
 
 export default function CampaignDetail() {
@@ -134,6 +135,7 @@ export default function CampaignDetail() {
   const navigate = useNavigate();
   const shopify = useAppBridge();
   const [activeTab, setActiveTab] = useState(0);
+
 
   useEffect(() => {
     if (actionData?.success) {
@@ -148,199 +150,198 @@ export default function CampaignDetail() {
 
   return (
     <s-page heading={campaign.name}>
-      <s-button slot="back-action" variant="tertiary" onClick={() => navigate("/app/campaigns")}>Campaigns</s-button>
+      <s-link slot="breadcrumb-actions" onClick={() => navigate("/app/campaigns")}>Campaigns</s-link>
 
       {(campaign.status === "ACTIVE" || campaign.status === "SCHEDULED") && (
-        <s-button slot="primary-action" variant="primary" onClick={() => submit({ intent: "PAUSE" }, { method: "POST" })}>
+        <s-button icon="pause-circle" slot="primary-action" variant="primary" onClick={() => submit({ intent: "PAUSE" }, { method: "POST" })}>
           Pause Campaign
         </s-button>
       )}
-      {(campaign.status === "PAUSED" || campaign.status === "DRAFT") && (
-        <s-button slot="primary-action" variant="primary" onClick={() => submit({ intent: "RESUME" }, { method: "POST" })}>
+      {campaign.status === "DRAFT" && (
+        <s-button icon="play-circle" slot="primary-action" variant="primary" onClick={() => submit({ intent: "RESUME" }, { method: "POST" })}>
           Resume Campaign
         </s-button>
       )}
       <s-button
-        slot="secondary-action"
+        slot="secondary-actions"
+        variant="secondary"
         onClick={() => navigate(`/app/campaigns/new?id=${campaign.id}`)}
+        icon="edit"
       >
         Edit Campaign
       </s-button>
       <s-button
-        slot="secondary-action"
+        slot="secondary-actions"
+        variant="secondary"
         tone="critical"
-        onClick={() => {
-          if (confirm("Delete this campaign? Prices will be restored.")) submit({ intent: "DELETE" }, { method: "POST" });
-        }}
+        icon="delete"
+        commandFor="delete-modal"
+        command="--show"
       >
         Delete
       </s-button>
 
-      {/* Title Badge */}
-      <s-stack direction="inline" gap="small" align-items="center">
-        <StatusBadge status={campaign.status} />
-      </s-stack>
-
       {/* Tab Bar */}
-      <div style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px", marginTop: "16px", paddingBottom: "8px" }}>
+      <div style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px", marginTop: "8px", paddingBottom: "8px" }}>
         <s-stack direction="inline" gap="small">
           {tabs.map((tab, i) => (
             <s-button key={tab} variant={activeTab === i ? "primary" : "tertiary"} onClick={() => setActiveTab(i)}>
               {tab}
             </s-button>
           ))}
+          <StatusBadge status={campaign.status} />
         </s-stack>
       </div>
 
       {/* TAB 1: Details */}
       {activeTab === 0 && (
-        <s-stack direction="block" gap="large">
-          <s-grid>
-            <s-stack direction="block" gap="base">
-              <s-heading>Campaign Info</s-heading>
-              <s-stack direction="inline" gap="large">
+        <s-stack direction="block" gap="base">
+          <s-card heading="Campaign Info">
+            <s-box padding="base">
+              <s-grid gridTemplateColumns="repeat(4, 1fr)" gap="base">
                 <s-stack direction="block" gap="none">
-                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>Type</span>
-                  <span style={{ fontSize: "14px" }}>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</span>
+                  <s-text tone="neutral">Type</s-text>
+                  <s-text><strong>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</strong></s-text>
                 </s-stack>
                 <s-stack direction="block" gap="none">
-                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>Timezone</span>
-                  <span style={{ fontSize: "14px" }}>{campaign.timezone}</span>
+                  <s-text tone="neutral">Timezone</s-text>
+                  <s-text><strong>{campaign.timezone}</strong></s-text>
                 </s-stack>
                 <s-stack direction="block" gap="none">
-                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>Start</span>
-                  <span style={{ fontSize: "14px" }}>{new Date(campaign.startDate).toLocaleString()}</span>
+                  <s-text tone="neutral">Start Date</s-text>
+                  <s-text><strong>{new Date(campaign.startDate).toLocaleString()}</strong></s-text>
                 </s-stack>
                 <s-stack direction="block" gap="none">
-                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>End</span>
-                  <span style={{ fontSize: "14px" }}>{new Date(campaign.endDate).toLocaleString()}</span>
+                  <s-text tone="neutral">End Date</s-text>
+                  <s-text><strong>{new Date(campaign.endDate).toLocaleString()}</strong></s-text>
                 </s-stack>
-              </s-stack>
-              {campaign.notes && (
-                <s-stack direction="block" gap="none">
-                  <span style={{ fontWeight: 600, fontSize: "14px", color: "var(--p-color-text-secondary, #616161)" }}>Notes</span>
-                  <div style={{ color: "var(--p-color-text-secondary, #616161)", fontSize: "14px" }}>{campaign.notes}</div>
-                </s-stack>
-              )}
-            </s-stack>
-          </s-grid>
+              </s-grid>
 
-          <s-grid>
-            <s-stack direction="block" gap="base">
-              <s-heading>Campaign Stages</s-heading>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                    {["#", "Label", "Discount", "Start", "End", "Status"].map((h) => (
-                      <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>
-                        <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--p-color-text-secondary, #616161)" }}>{h}</span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
+              {campaign.notes && (
+                <s-box paddingBlockStart="base">
+                  <s-divider />
+                  <s-box paddingBlockStart="base">
+                    <s-stack direction="block" gap="none">
+                      <s-text tone="neutral">Notes</s-text>
+                      <s-text>{campaign.notes}</s-text>
+                    </s-stack>
+                  </s-box>
+                </s-box>
+              )}
+            </s-box>
+          </s-card>
+
+          <s-card heading="Campaign Stages">
+            <s-box padding="base">
+              <s-table>
+                <s-table-header-row>
+                  <s-table-header format="numeric">#</s-table-header>
+                  <s-table-header listSlot="primary">Label</s-table-header>
+                  <s-table-header>Discount</s-table-header>
+                  <s-table-header>Start</s-table-header>
+                  <s-table-header>End</s-table-header>
+                  <s-table-header listSlot="secondary">Status</s-table-header>
+                </s-table-header-row>
+
+                <s-table-body>
                   {campaign.stages.map((stage) => {
-                    let stageLabelNode = <span>{stage.label || "—"}</span>;
+                    let stageLabelNode = <s-text>{stage.label || "—"}</s-text>;
                     if (stage.label) {
                       try {
                         const parsed = JSON.parse(stage.label);
                         if (parsed && typeof parsed === "object" && parsed.isCirclePhase) {
                           stageLabelNode = (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                              <span style={{ fontWeight: 600, fontSize: "14px" }}>{parsed.phaseTitle || parsed.label}</span>
-                              <span style={{ fontSize: "12px", color: "#616161" }}>
+                            <s-stack direction="block" gap="none">
+                              <s-text><strong>{parsed.phaseTitle || parsed.label}</strong></s-text>
+                              <s-text tone="neutral">
                                 Badge Label: "{parsed.label}"
-                                {parsed.discountCode ? ` | Code: ${parsed.discountCode}` : ""}
-                                {parsed.visible === false ? " | Hidden" : " | Visible"}
-                                {parsed.autoApply ? " | Auto-applied" : ""}
-                              </span>
-                            </div>
+                                {parsed.discountCode ? ` · Code: ${parsed.discountCode}` : ""}
+                                {parsed.visible === false ? " · Hidden" : " · Visible"}
+                                {parsed.autoApply ? " · Auto-applied" : ""}
+                              </s-text>
+                            </s-stack>
                           );
                         }
                       } catch (e) {}
                     }
 
                     return (
-                      <tr key={stage.id} style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{stage.stageNumber}</span></td>
-                        <td style={{ padding: "8px 12px" }}>{stageLabelNode}</td>
-                        <td style={{ padding: "8px 12px" }}>
-                          <span style={{ fontSize: "14px" }}>{stage.discountValue}{campaign.discountType === "PERCENTAGE" ? "%" : "$"}</span>
-                        </td>
-                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(stage.startDate).toLocaleDateString()}</span></td>
-                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(stage.endDate).toLocaleDateString()}</span></td>
-                        <td style={{ padding: "8px 12px" }}>
+                      <s-table-row key={stage.id}>
+                        <s-table-cell>{stage.stageNumber}</s-table-cell>
+                        <s-table-cell>{stageLabelNode}</s-table-cell>
+                        <s-table-cell>
+                          <s-text>{stage.discountValue}{campaign.discountType === "PERCENTAGE" ? "%" : "$"}</s-text>
+                        </s-table-cell>
+                        <s-table-cell>{new Date(stage.startDate).toLocaleDateString()}</s-table-cell>
+                        <s-table-cell>{new Date(stage.endDate).toLocaleDateString()}</s-table-cell>
+                        <s-table-cell>
                           <s-badge tone={stage.status === "ACTIVE" ? "success" : stage.status === "COMPLETED" ? "success" : "info"}>
                             {stage.status}
                           </s-badge>
-                        </td>
-                      </tr>
+                        </s-table-cell>
+                      </s-table-row>
                     );
                   })}
-                </tbody>
-              </table>
-            </s-stack>
-          </s-grid>
+                </s-table-body>
+              </s-table>
+            </s-box>
+          </s-card>
         </s-stack>
       )}
 
       {/* TAB 2: Conflicts */}
       {activeTab === 1 && (
-        <s-grid>
-          <s-stack direction="block" gap="base">
-            <s-heading>Conflict Detection Log</s-heading>
-            <div style={{ color: "var(--p-color-text-secondary, #616161)", fontSize: "14px" }}>
-              When multiple campaigns target the same variants, the system resolves by applying the best price.
-            </div>
-            {conflicts.length === 0 ? (
-              <s-banner tone="success">No price conflicts detected for this campaign.</s-banner>
-            ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                    {["Date/Time", "Variant ID", "Message"].map((h) => (
-                      <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>
-                        <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--p-color-text-secondary, #616161)" }}>{h}</span>
-                      </th>
+        <s-card heading="Conflict Detection Log">
+          <s-box padding="base">
+            <s-stack direction="block" gap="base">
+              <s-text tone="neutral">
+                When multiple campaigns target the same variants, the system resolves by applying the best price.
+              </s-text>
+              {conflicts.length === 0 ? (
+                <s-banner tone="success">No price conflicts detected for this campaign.</s-banner>
+              ) : (
+                <s-table>
+                  <s-table-header-row>
+                    <s-table-header listSlot="primary">Date/Time</s-table-header>
+                    <s-table-header>Variant ID</s-table-header>
+                    <s-table-header listSlot="secondary">Message</s-table-header>
+                  </s-table-header-row>
+
+                  <s-table-body>
+                    {conflicts.map((log) => (
+                      <s-table-row key={log.id}>
+                        <s-table-cell>{new Date(log.createdAt).toLocaleString()}</s-table-cell>
+                        <s-table-cell>
+                          <s-badge>{((log.metadata as any)?.variantId ?? "").split("/").pop()}</s-badge>
+                        </s-table-cell>
+                        <s-table-cell>
+                          <s-text>{log.message}</s-text>
+                        </s-table-cell>
+                      </s-table-row>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {conflicts.map((log) => (
-                    <tr key={log.id} style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(log.createdAt).toLocaleString()}</span></td>
-                      <td style={{ padding: "8px 12px" }}>
-                        <s-badge>{((log.metadata as any)?.variantId ?? "").split("/").pop()}</s-badge>
-                      </td>
-                      <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{log.message}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </s-stack>
-        </s-grid>
+                  </s-table-body>
+                </s-table>
+              )}
+            </s-stack>
+          </s-box>
+        </s-card>
       )}
 
       {/* TAB 3: Logs */}
       {activeTab === 2 && (
-        <s-grid>
-          <s-stack direction="block" gap="base">
-            <s-heading>Activity Logs</s-heading>
+        <s-card heading="Activity Logs">
+          <s-box padding="base">
             {logs.length === 0 ? (
-              <div style={{ color: "var(--p-color-text-secondary, #616161)", fontSize: "14px" }}>No activity logs yet.</div>
+              <s-text tone="neutral">No activity logs yet.</s-text>
             ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                    {["Date/Time", "Event", "Message"].map((h) => (
-                      <th key={h} style={{ padding: "8px 12px", textAlign: "left" }}>
-                        <span style={{ fontWeight: 600, fontSize: "13px", color: "var(--p-color-text-secondary, #616161)" }}>{h}</span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
+              <s-table>
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">Date/Time</s-table-header>
+                  <s-table-header>Event</s-table-header>
+                  <s-table-header listSlot="secondary">Message</s-table-header>
+                </s-table-header-row>
+
+                <s-table-body>
                   {logs.map((log) => {
                     const toneMap: Record<string, "info" | "auto" | "neutral" | "success" | "caution" | "warning" | "critical"> = {
                       PRICE_UPDATED: "success",
@@ -350,21 +351,55 @@ export default function CampaignDetail() {
                       STAGE_COMPLETED: "info"
                     };
                     return (
-                      <tr key={log.id} style={{ borderBottom: "1px solid var(--p-border-subdued)" }}>
-                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{new Date(log.createdAt).toLocaleString()}</span></td>
-                        <td style={{ padding: "8px 12px" }}>
+                      <s-table-row key={log.id}>
+                        <s-table-cell>{new Date(log.createdAt).toLocaleString()}</s-table-cell>
+                        <s-table-cell>
                           <s-badge tone={toneMap[log.event] ?? "neutral"}>{log.event}</s-badge>
-                        </td>
-                        <td style={{ padding: "8px 12px" }}><span style={{ fontSize: "14px" }}>{log.message}</span></td>
-                      </tr>
+                        </s-table-cell>
+                        <s-table-cell>
+                          <s-text>{log.message}</s-text>
+                        </s-table-cell>
+                      </s-table-row>
                     );
                   })}
-                </tbody>
-              </table>
+                </s-table-body>
+              </s-table>
             )}
-          </s-stack>
-        </s-grid>
+          </s-box>
+        </s-card>
       )}
+      {/* Delete Confirmation Modal */}
+      <s-modal
+        id="delete-modal"
+        heading="Delete campaign?"
+        size="small"
+      >
+        <s-box padding="base">
+          <s-stack direction="block" gap="base">
+            <s-text>
+              Are you sure you want to delete the campaign <strong>{campaign.name}</strong>? This action cannot be undone and baseline prices will be restored.
+            </s-text>
+          </s-stack>
+        </s-box>
+        <s-button
+          slot="primary-action"
+          variant="primary"
+          tone="critical"
+          commandFor="delete-modal"
+          command="--hide"
+          onClick={() => submit({ intent: "DELETE" }, { method: "POST" })}
+        >
+          Delete campaign
+        </s-button>
+        <s-button
+          slot="secondary-actions"
+          variant="secondary"
+          commandFor="delete-modal"
+          command="--hide"
+        >
+          Cancel
+        </s-button>
+      </s-modal>
     </s-page>
   );
 }

@@ -1192,16 +1192,16 @@ export default function AdditionalPage() {
         <s-card>
           <s-stack direction="block" gap="base">
             <s-stack direction="block" gap="small">
-              <s-inline align="space-between" blockAlign="center">
-                <s-text tone="neutral">Status</s-text>
+              <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                <s-text tone="neutral">Status : </s-text>
                 <s-badge tone={statusTone(getCampaignStatus())}>{getCampaignStatus()}</s-badge>
-              </s-inline>
-              <s-inline align="space-between" blockAlign="center">
-                <s-text tone="neutral">Discount type</s-text>
+              </s-stack>
+              <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                <s-text tone="neutral">Discount type : </s-text>
                 <s-badge>{discountType === "percentage" ? "Percentage (%)" : `Fixed (${currency})`}</s-badge>
-              </s-inline>
-              <s-inline align="space-between" blockAlign="center">
-                <s-text tone="neutral">Target</s-text>
+              </s-stack>
+              <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                <s-text tone="neutral">Target : </s-text>
                 <s-badge>
                   {productOption === "products"
                     ? `${selectedProducts.length} product${selectedProducts.length !== 1 ? "s" : ""}`
@@ -1209,18 +1209,18 @@ export default function AdditionalPage() {
                     ? `${selectedCollections.length} collection${selectedCollections.length !== 1 ? "s" : ""}`
                     : `${selectedTags.length} tag${selectedTags.length !== 1 ? "s" : ""}`}
                 </s-badge>
-              </s-inline>
-              <s-inline align="space-between" blockAlign="center">
-                <s-text tone="neutral">Total Phases</s-text>
-                <s-text font-weight="semibold">{phases.length}</s-text>
-              </s-inline>
+              </s-stack>
+              <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                <s-text tone="neutral">Total Phases : </s-text>
+                <s-text font-weight="semibold" dir="rtl" >{phases.length}</s-text>
+              </s-stack>
             </s-stack>
             <s-divider />
-            <s-text font-weight="semibold">Phase Breakdown</s-text>
+            <s-text font-weight="semibold">Phase Breakdown </s-text>
             <s-unordered-list>
               {phases.map((p, i) => (
                 <s-list-item key={i}>
-                  <s-stack direction="inline" gap="extraSmall" alignItems="center">
+                  <s-stack direction="inline" gap="extraSmall" alignItems="center" justifyContent="space-between">
                     <s-text>{p.phaseTitle || `Phase ${i + 1}`}:</s-text>
                     <s-badge tone={p.discountValue ? "success" : "neutral"}>
                       {p.discountValue || "0"}{discountType === "percentage" ? "%" : ` ${currency}`} OFF

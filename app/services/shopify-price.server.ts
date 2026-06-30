@@ -186,11 +186,41 @@ export async function updateVariantPriceWithRetry(
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
+      // 1. Fetch the product ID associated with this variant ID
+      const queryResponse = await admin.graphql(
+        `#graphql
+        query getVariantProduct($id: ID!) {
+          productVariant(id: $id) {
+            product {
+              id
+            }
+          }
+        }`,
+        { variables: { id: variantId } }
+      );
+
+      if (queryResponse.status === 429) {
+        if (attempt < retries) {
+          console.warn(`Rate limit hit (429) on query. Retrying variant update in 2 seconds... (Attempt ${attempt}/${retries})`);
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          continue;
+        } else {
+          throw new Error("Rate limit hit (429) and max retries exceeded");
+        }
+      }
+
+      const queryJson = await queryResponse.json();
+      const productId = queryJson.data?.productVariant?.product?.id;
+      if (!productId) {
+        throw new Error(`Product not found for variant ID: ${variantId}`);
+      }
+
+      // 2. Perform the update using productVariantsBulkUpdate
       const response = await admin.graphql(
         `#graphql
-        mutation productVariantUpdate($input: ProductVariantInput!) {
-          productVariantUpdate(input: $input) {
-            productVariant {
+        mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants {
               id
               price
               compareAtPrice
@@ -203,11 +233,14 @@ export async function updateVariantPriceWithRetry(
         }`,
         {
           variables: {
-            input: {
-              id: variantId,
-              price: formattedPrice,
-              compareAtPrice: formattedCompare,
-            },
+            productId,
+            variants: [
+              {
+                id: variantId,
+                price: formattedPrice,
+                compareAtPrice: formattedCompare,
+              },
+            ],
           },
         }
       );
@@ -215,7 +248,7 @@ export async function updateVariantPriceWithRetry(
       // Handle HTTP status code checks (like 429 Rate Limit)
       if (response.status === 429) {
         if (attempt < retries) {
-          console.warn(`Rate limit hit (429). Retrying variant update in 2 seconds... (Attempt ${attempt}/${retries})`);
+          console.warn(`Rate limit hit (429) on mutation. Retrying variant update in 2 seconds... (Attempt ${attempt}/${retries})`);
           await new Promise((resolve) => setTimeout(resolve, 2000));
           continue;
         } else {
@@ -225,7 +258,7 @@ export async function updateVariantPriceWithRetry(
 
       const resJson = await response.json();
       const errors = resJson.errors || [];
-      const userErrors = resJson.data?.productVariantUpdate?.userErrors || [];
+      const userErrors = resJson.data?.productVariantsBulkUpdate?.userErrors || [];
 
       if (errors.length > 0) {
         throw new Error(errors.map((e: any) => e.message).join(", "));
@@ -234,7 +267,7 @@ export async function updateVariantPriceWithRetry(
         throw new Error(userErrors.map((e: any) => `${e.field}: ${e.message}`).join(", "));
       }
 
-      return resJson.data?.productVariantUpdate?.productVariant;
+      return resJson.data?.productVariantsBulkUpdate?.productVariants?.[0];
     } catch (err: any) {
       if (attempt < retries) {
         console.warn(`Error updating variant price: ${err.message}. Retrying in 2 seconds... (Attempt ${attempt}/${retries})`);
