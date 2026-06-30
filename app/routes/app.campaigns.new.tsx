@@ -148,13 +148,26 @@ function useWebComponentChoice(
     if (!el) return;
 
     const handler = (e: Event) => {
-      // s-choice-list fires "change" on itself with detail.value OR on the inner radio
       const ce = e as CustomEvent;
+      const targetList = el as any;
+      const targetEl = e.target as any;
+
+      // 1. Try to read values array from s-choice-list (currentTarget or el)
+      const values = targetList?.values ?? targetEl?.values;
+      if (Array.isArray(values) && values.length > 0) {
+        onChangeRef.current(values[0]);
+        return;
+      }
+
+      // 2. Fallbacks: detail, target element value, list value
       const val =
         ce.detail?.value ??
-        (e.target as HTMLInputElement)?.value ??
-        (el as any).value;
-      if (val) onChangeRef.current(val);
+        targetEl?.value ??
+        targetList?.value;
+
+      if (val) {
+        onChangeRef.current(val);
+      }
     };
 
     // listen on both the component and bubbled change from children
@@ -232,6 +245,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     let resolvedProducts: any[] = [];
     let loadedCollections: any[] = [];
+    let resolvedCollectionsMap: Record<string, any[]> = {};
 
     for (const prodTarget of campaign.products) {
       if (prodTarget.targetType === "PRODUCT") {
@@ -259,7 +273,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   products(first: 100) { nodes { id title handle featuredImage { url } tags } }
                 }
               }`, { variables: { id: colId } });
-            resolvedProducts.push(...((await res.json()).data?.collection?.products?.nodes || []));
+            const colProds = (await res.json()).data?.collection?.products?.nodes || [];
+            resolvedProducts.push(...colProds);
+            resolvedCollectionsMap[colId] = colProds;
           }
         }
       } else if (prodTarget.targetType === "TAG") {
@@ -280,10 +296,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       seen.add(p.id);
       return true;
     });
-    return { campaign, resolvedProducts: deduplicatedProducts, loadedCollections, shopSettings };
+    return { campaign, resolvedProducts: deduplicatedProducts, loadedCollections, resolvedCollectionsMap, shopSettings };
   }
 
-  return { campaign: null, resolvedProducts: [], loadedCollections: [], shopSettings };
+  return { campaign: null, resolvedProducts: [], loadedCollections: [], resolvedCollectionsMap: {}, shopSettings };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -407,8 +423,8 @@ export default function AdditionalPage() {
   const [phases, setPhases] = useState<Phase[]>([createEmptyPhase(1, storeTimezone)]);
 
   // ── Refs for s-* web component listeners ──
-  const discountChoiceRef = useRef<HTMLElement>(null);
-  const productChoiceRef = useRef<HTMLElement>(null);
+  const discountChoiceRef = useRef<any>(null);
+  const productChoiceRef = useRef<any>(null);
 
   // Keep latest discountType & productOption accessible inside event handlers
   const discountTypeRef = useRef(discountType);
@@ -431,22 +447,34 @@ export default function AdditionalPage() {
   useEffect(() => {
     const list = productChoiceRef.current;
     if (!list) return;
+    (list as any).values = [productOption];
     const choices = list.querySelectorAll("s-choice");
-    choices.forEach((c) => {
+    choices.forEach((c: any) => {
       const val = c.getAttribute("value");
-      if (val === productOption) c.setAttribute("selected", "");
-      else c.removeAttribute("selected");
+      if (val === productOption) {
+        c.setAttribute("selected", "");
+        (c as any).selected = true;
+      } else {
+        c.removeAttribute("selected");
+        (c as any).selected = false;
+      }
     });
   }, [productOption]);
 
   useEffect(() => {
     const list = discountChoiceRef.current;
     if (!list) return;
+    (list as any).values = [discountType];
     const choices = list.querySelectorAll("s-choice");
-    choices.forEach((c) => {
+    choices.forEach((c: any) => {
       const val = c.getAttribute("value");
-      if (val === discountType) c.setAttribute("selected", "");
-      else c.removeAttribute("selected");
+      if (val === discountType) {
+        c.setAttribute("selected", "");
+        (c as any).selected = true;
+      } else {
+        c.removeAttribute("selected");
+        (c as any).selected = false;
+      }
     });
   }, [discountType]);
 
@@ -485,7 +513,7 @@ export default function AdditionalPage() {
     if (opt === "products") setSelectedProducts(ld.resolvedProducts || []);
     else if (opt === "collections") {
       setSelectedCollections(ld.loadedCollections || []);
-      setCollectionProductsMap({ all: ld.resolvedProducts || [] });
+      setCollectionProductsMap(ld.resolvedCollectionsMap || {});
     } else {
       setSelectedTags(firstProduct?.targetValue?.split(",") || []);
       setTagProducts(ld.resolvedProducts || []);
@@ -615,9 +643,15 @@ export default function AdditionalPage() {
     if (productOption === "collections") {
       const prods: any[] = [];
       const seen = new Set();
-      Object.values(collectionProductsMap).forEach((list) =>
-        list.forEach((p) => { if (!seen.has(p.id)) { seen.add(p.id); prods.push(p); } })
-      );
+      selectedCollections.forEach((col) => {
+        const list = collectionProductsMap[col.id] || [];
+        list.forEach((p) => {
+          if (!seen.has(p.id)) {
+            seen.add(p.id);
+            prods.push(p);
+          }
+        });
+      });
       return prods;
     }
     return tagProducts;
