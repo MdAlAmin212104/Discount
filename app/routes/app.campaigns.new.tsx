@@ -828,9 +828,9 @@ export default function AdditionalPage() {
             {/* Collections: show selected badges */}
             {productOption === "collections" && selectedCollections.length > 0 && (
               <s-box paddingBlockEnd="small">
-                <s-stack direction="inline" gap="small" wrap="wrap">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--p-space-200)" }}>
                   {selectedCollections.map((col) => (
-                    <s-stack key={col.id} direction="inline" gap="extraSmall" alignItems="center">
+                    <s-stack key={col.id} direction="inline" gap="small" alignItems="center">
                       <s-badge tone="info">{col.title}</s-badge>
                       <s-button
                         variant="tertiary"
@@ -841,17 +841,17 @@ export default function AdditionalPage() {
                       />
                     </s-stack>
                   ))}
-                </s-stack>
+                </div>
               </s-box>
             )}
 
             {/* Tags: show selected badges */}
             {productOption === "tags" && selectedTags.length > 0 && (
               <s-box paddingBlockEnd="small">
-                <s-stack direction="inline" gap="small" wrap="wrap">
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--p-space-200)" }}>
                   {selectedTags.map((tag) => (
-                    <s-stack key={tag} direction="inline" gap="extraSmall" alignItems="center">
-                      <s-badge tone="attention">{tag}</s-badge>
+                    <s-stack key={tag} direction="inline" gap="small" alignItems="center">
+                      <s-badge tone="info">{tag}</s-badge>
                       <s-button
                         variant="tertiary"
                         icon="delete"
@@ -861,26 +861,36 @@ export default function AdditionalPage() {
                       />
                     </s-stack>
                   ))}
-                </s-stack>
+                </div>
               </s-box>
             )}
 
             {/* Tags: input field for adding tags */}
             {productOption === "tags" && (
               <s-box paddingBlockEnd="base">
-                <s-grid gridTemplateColumns="1fr auto" gap="small-200" alignItems="end">
-                  <s-text-field
-                    label="Add Product Tag"
-                    placeholder="e.g. summer-sale, new-arrival"
-                    helpText="Products matching this tag will be included in the campaign"
-                    value={tagInput}
-                    onChange={(e: any) => setTagInput(e.currentTarget.value)}
-                    onKeyDown={(e: any) => { if (e.key === "Enter") handleAddTag(e); }}
-                  />
-                  <s-button onClick={handleAddTag} loading={tagLoading ? true : undefined}>
-                    Add Tag
-                  </s-button>
-                </s-grid>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleAddTag(e);
+                  }}
+                >
+                  <s-grid gridTemplateColumns="1fr auto" gap="small" alignItems="end">
+                    <s-stack gap="small">
+                      <s-text-field
+                        label="Add Product Tag"
+                        placeholder="e.g. summer-sale, new-arrival"
+                        value={tagInput}
+                        onChange={(e: any) => setTagInput(e.currentTarget.value)}
+                      />
+                      <s-text color="subdued">
+                        Products matching this tag will be included in the campaign
+                      </s-text>
+                    </s-stack>
+                    <s-button onClick={handleAddTag} loading={tagLoading ? true : undefined}>
+                      Add Tag
+                    </s-button>
+                  </s-grid>
+                </form>
               </s-box>
             )}
 
@@ -947,10 +957,10 @@ export default function AdditionalPage() {
                               src={product.featuredImage?.url || product.image || "https://picsum.photos/id/29/80/80"}
                             />
                           </s-clickable>
-                          <s-stack direction="block" gap="extraSmall">
+                          <s-stack direction="block" gap="small">
                             <s-text>{product.title}</s-text>
                             {productOption === "tags" && product.tags?.length > 0 && (
-                              <s-text tone="neutral" variant="bodySm">
+                              <s-text color="subdued">
                                 Tags: {product.tags.filter((t: string) =>
                                   selectedTags.some((st) => st.toLowerCase() === t.toLowerCase())
                                 ).join(", ")}
@@ -969,7 +979,7 @@ export default function AdditionalPage() {
                             onClick={() => handleRemoveProduct(product.id)}
                           />
                         ) : (
-                          <s-text tone="neutral">—</s-text>
+                          <s-text color="subdued">—</s-text>
                         )}
                       </s-table-cell>
                     </s-table-row>
@@ -1025,22 +1035,22 @@ export default function AdditionalPage() {
                     </s-stack>
                     <s-divider />
                     <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="base">
-                      <s-stack direction="block" gap="extraSmall">
-                        <s-text tone="neutral" variant="bodySm">Discount</s-text>
-                        <s-text font-weight="semibold">
-                          {phase.discountValue}{discountType === "percentage" ? "%" : ` ${currency}`} OFF
+                      <s-stack direction="block" gap="small">
+                        <s-text color="subdued">Discount</s-text>
+                        <s-text>
+                          <strong>{phase.discountValue}{discountType === "percentage" ? "%" : ` ${currency}`} OFF</strong>
                         </s-text>
                       </s-stack>
-                      <s-stack direction="block" gap="extraSmall">
-                        <s-text tone="neutral" variant="bodySm">Start</s-text>
+                      <s-stack direction="block" gap="small">
+                        <s-text color="subdued">Start</s-text>
                         <s-text>{phase.startDate} {phase.startTime}</s-text>
                       </s-stack>
-                      <s-stack direction="block" gap="extraSmall">
-                        <s-text tone="neutral" variant="bodySm">End</s-text>
+                      <s-stack direction="block" gap="small">
+                        <s-text color="subdued">End</s-text>
                         <s-text>{phase.endDate} {phase.endTime}</s-text>
                       </s-stack>
                     </s-grid>
-                    <s-text tone="neutral" variant="bodySm">
+                    <s-text color="subdued">
                       Badge: "{phase.badgeLabel}" · Widget: {phase.visible ? "Visible" : "Hidden"} · Auto-apply: {phase.autoApply ? "Yes" : "No"}
                     </s-text>
                   </s-stack>
@@ -1092,7 +1102,7 @@ export default function AdditionalPage() {
 
                     <s-stack direction="block" gap="small">
                       <s-heading>Schedule</s-heading>
-                      <s-text tone="neutral" variant="bodySm">
+                      <s-text color="subdued">
                         Store timezone: (GMT{offset}) {storeTimezone}
                       </s-text>
 
@@ -1211,16 +1221,16 @@ export default function AdditionalPage() {
                 </s-badge>
               </s-stack>
               <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-                <s-text tone="neutral">Total Phases : </s-text>
-                <s-text font-weight="semibold" dir="rtl" >{phases.length}</s-text>
+                <s-text color="subdued">Total Phases : </s-text>
+                <s-text dir="rtl"><strong>{phases.length}</strong></s-text>
               </s-stack>
             </s-stack>
             <s-divider />
-            <s-text font-weight="semibold">Phase Breakdown </s-text>
+            <s-text><strong>Phase Breakdown </strong></s-text>
             <s-unordered-list>
               {phases.map((p, i) => (
                 <s-list-item key={i}>
-                  <s-stack direction="inline" gap="extraSmall" alignItems="center" justifyContent="space-between">
+                  <s-stack direction="inline" gap="small" alignItems="center" justifyContent="space-between">
                     <s-text>{p.phaseTitle || `Phase ${i + 1}`}:</s-text>
                     <s-badge tone={p.discountValue ? "success" : "neutral"}>
                       {p.discountValue || "0"}{discountType === "percentage" ? "%" : ` ${currency}`} OFF

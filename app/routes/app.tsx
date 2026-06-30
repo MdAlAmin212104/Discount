@@ -17,7 +17,6 @@ export default function App() {
       <s-app-nav>
         <s-link href="/app">Home</s-link>
         <s-link href="/app/campaigns">Campaigns</s-link>
-        <s-link href="/app/compaign">Create Campaign</s-link>
         <s-link href="/app/theme-settings">Theme</s-link>
       </s-app-nav>
 
