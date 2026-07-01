@@ -8,7 +8,7 @@ import { CampaignStatus, StageStatus, LogEvent, JobStatus } from "@prisma/client
 import { updateVariantPriceWithRetry } from "../services/shopify-price.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = await getOrCreateShop(session.shop, session.accessToken || "");
 
   const campaign = await prisma.campaign.findFirst({
@@ -23,12 +23,125 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     orderBy: { createdAt: "desc" },
   });
 
-  const logs = await prisma.activityLog.findMany({
-    where: { shopId: shop.id, campaignId: campaign.id, event: { not: LogEvent.CONFLICT_DETECTED } },
-    orderBy: { createdAt: "desc" },
+  // Resolve campaign's targeted products via Shopify GraphQL API
+  let resolvedProducts: any[] = [];
+  try {
+    for (const prodTarget of campaign.products) {
+      if (prodTarget.targetType === "PRODUCT") {
+        const ids = prodTarget.targetValue.split(",").filter(Boolean);
+        if (ids.length) {
+          const res = await admin.graphql(`#graphql
+            query getProductsDetails($ids: [ID!]!) {
+              nodes(ids: $ids) { ... on Product { id title handle featuredImage { url } tags } }
+            }`, { variables: { ids } });
+          const json = await res.json();
+          resolvedProducts.push(...(json.data?.nodes || []).filter(Boolean));
+        }
+      } else if (prodTarget.targetType === "COLLECTION") {
+        const ids = prodTarget.targetValue.split(",").filter(Boolean);
+        if (ids.length) {
+          for (const colId of ids) {
+            const res = await admin.graphql(`#graphql
+              query getCollectionProducts($id: ID!) {
+                collection(id: $id) {
+                  products(first: 100) { nodes { id title handle featuredImage { url } tags } }
+                }
+              }`, { variables: { id: colId } });
+            const colProds = (await res.json()).data?.collection?.products?.nodes || [];
+            resolvedProducts.push(...colProds);
+          }
+        }
+      } else if (prodTarget.targetType === "TAG") {
+        const tags = prodTarget.targetValue.split(",").filter(Boolean);
+        for (const tagVal of tags) {
+          const res = await admin.graphql(`#graphql
+            query getProductsByTag($query: String!) {
+              products(first: 100, query: $query) { nodes { id title handle featuredImage { url } tags } }
+            }`, { variables: { query: `tag:${tagVal}` } });
+          resolvedProducts.push(...((await res.json()).data?.products?.nodes || []));
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error resolving targeted products:", err);
+  }
+
+  const seen = new Set();
+  const deduplicatedProducts = resolvedProducts.filter((p) => {
+    if (!p || seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
   });
 
-  return { campaign, conflicts, logs };
+  // Resolve conflict variant details & campaign names
+  const variantIds = conflicts
+    .map((c) => (c.metadata as any)?.variantId)
+    .filter(Boolean);
+  const uniqueVariantIds = Array.from(new Set(variantIds));
+  let variantDetailsMap: Record<string, any> = {};
+
+  if (uniqueVariantIds.length > 0) {
+    try {
+      const res = await admin.graphql(`#graphql
+        query getVariantsDetails($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on ProductVariant {
+              id
+              title
+              price
+              product {
+                id
+                title
+                featuredImage {
+                  url
+                }
+              }
+            }
+          }
+        }
+      `, { variables: { ids: uniqueVariantIds } });
+      const json = await res.json();
+      const nodes = json.data?.nodes || [];
+      nodes.forEach((node: any) => {
+        if (node) {
+          variantDetailsMap[node.id] = node;
+        }
+      });
+    } catch (err) {
+      console.error("Error resolving conflict variant details:", err);
+    }
+  }
+
+  const campaignIds: string[] = [];
+  conflicts.forEach((c) => {
+    const meta = c.metadata as any;
+    if (meta?.chosenCampaignId) campaignIds.push(meta.chosenCampaignId);
+    if (meta?.conflictingCampaignIds) campaignIds.push(...meta.conflictingCampaignIds);
+  });
+  const uniqueCampaignIds = Array.from(new Set(campaignIds));
+  let campaignNamesMap: Record<string, string> = {};
+
+  if (uniqueCampaignIds.length > 0) {
+    try {
+      const relatedCampaigns = await prisma.campaign.findMany({
+        where: { id: { in: uniqueCampaignIds } },
+        select: { id: true, name: true },
+      });
+      relatedCampaigns.forEach((rc) => {
+        campaignNamesMap[rc.id] = rc.name;
+      });
+    } catch (err) {
+      console.error("Error resolving related campaigns names:", err);
+    }
+  }
+
+  return {
+    campaign,
+    conflicts,
+    resolvedProducts: deduplicatedProducts,
+    variantDetailsMap,
+    campaignNamesMap,
+  };
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -58,7 +171,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           const s = o.campaign.stages[0];
           let p = snap.originalPrice;
           if (o.campaign.discountType === "PERCENTAGE") p = snap.originalPrice * (1 - (s?.discountValue ?? 0) / 100);
-          else p = Math.max(0, snap.originalPrice - (s?.discountValue ?? 0));
+          else p = (s?.discountValue ?? 0);
           return p;
         });
         await updateVariantPriceWithRetry(admin, snap.variantId, Math.min(...prices), snap.originalPrice);
@@ -129,12 +242,32 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function CampaignDetail() {
-  const { campaign, conflicts, logs } = useLoaderData<typeof loader>();
+  const { campaign, conflicts, resolvedProducts, variantDetailsMap, campaignNamesMap } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const submit = useSubmit();
   const navigate = useNavigate();
   const shopify = useAppBridge();
   const [activeTab, setActiveTab] = useState(0);
+  const [currentProductPage, setCurrentProductPage] = useState(1);
+  const [currentConflictPage, setCurrentConflictPage] = useState(1);
+
+  // Product Pagination calculations (10 products per page)
+  const productsPerPage = 10;
+  const totalProductPages = Math.ceil(resolvedProducts.length / productsPerPage) || 1;
+  const displayProductPage = Math.min(currentProductPage, totalProductPages);
+  const paginatedProducts = resolvedProducts.slice(
+    (displayProductPage - 1) * productsPerPage,
+    displayProductPage * productsPerPage
+  );
+
+  // Conflict Pagination calculations (10 conflicts per page)
+  const conflictsPerPage = 10;
+  const totalConflictPages = Math.ceil(conflicts.length / conflictsPerPage) || 1;
+  const displayConflictPage = Math.min(currentConflictPage, totalConflictPages);
+  const paginatedConflicts = conflicts.slice(
+    (displayConflictPage - 1) * conflictsPerPage,
+    displayConflictPage * conflictsPerPage
+  );
 
 
   useEffect(() => {
@@ -146,7 +279,7 @@ export default function CampaignDetail() {
     }
   }, [actionData]);
 
-  const tabs = ["Details & Stages", `Conflicts (${conflicts.length})`, "Activity Logs"];
+  const tabs = ["Details & Stages", `Conflicts (${conflicts.length})`];
 
   return (
     <s-page heading={campaign.name}>
@@ -286,6 +419,86 @@ export default function CampaignDetail() {
               </s-table>
             </s-box>
           </s-card>
+
+          <s-card heading="Targeted Products">
+            <s-box padding="base">
+              {resolvedProducts.length === 0 ? (
+                <s-text tone="neutral">No products targeted by this campaign.</s-text>
+              ) : (
+                <s-stack direction="block" gap="base">
+                  <s-table>
+                    <s-table-header-row>
+                      <s-table-header listSlot="primary">Product</s-table-header>
+                      <s-table-header>Shopify ID</s-table-header>
+                      <s-table-header listSlot="secondary">Tags</s-table-header>
+                    </s-table-header-row>
+
+                    <s-table-body>
+                      {paginatedProducts.map((product) => (
+                        <s-table-row key={product.id}>
+                          <s-table-cell>
+                            <s-stack direction="inline" gap="small" alignItems="center">
+                              <s-clickable
+                                accessibilityLabel={product.title}
+                                border="base" borderRadius="base" overflow="hidden"
+                                inlineSize="40px" blockSize="40px"
+                              >
+                                <s-image
+                                  objectFit="cover"
+                                  src={product.featuredImage?.url || "https://picsum.photos/id/29/80/80"}
+                                />
+                              </s-clickable>
+                              <s-stack direction="block" gap="none">
+                                <s-text><strong>{product.title}</strong></s-text>
+                                {product.handle && (
+                                  <s-text color="subdued">/products/{product.handle}</s-text>
+                                )}
+                              </s-stack>
+                            </s-stack>
+                          </s-table-cell>
+                          <s-table-cell>
+                            <s-badge>{product.id.split("/").pop()}</s-badge>
+                          </s-table-cell>
+                          <s-table-cell>
+                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                              {product.tags && product.tags.length > 0 ? (
+                                product.tags.map((tag: string) => (
+                                  <s-badge key={tag} tone="info">{tag}</s-badge>
+                                ))
+                              ) : (
+                                <s-text color="subdued">—</s-text>
+                              )}
+                            </div>
+                          </s-table-cell>
+                        </s-table-row>
+                      ))}
+                    </s-table-body>
+                  </s-table>
+
+                  {/* Pagination */}
+                  {totalProductPages > 1 && (
+                    <s-box paddingBlockStart="base">
+                      <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
+                        <s-button
+                          disabled={displayProductPage === 1 ? true : undefined}
+                          onClick={(e: any) => { e.preventDefault(); if (displayProductPage > 1) setCurrentProductPage(displayProductPage - 1); }}
+                        >
+                          Previous
+                        </s-button>
+                        <s-text>Page {displayProductPage} of {totalProductPages}</s-text>
+                        <s-button
+                          disabled={displayProductPage === totalProductPages ? true : undefined}
+                          onClick={(e: any) => { e.preventDefault(); if (displayProductPage < totalProductPages) setCurrentProductPage(displayProductPage + 1); }}
+                        >
+                          Next
+                        </s-button>
+                      </s-stack>
+                    </s-box>
+                  )}
+                </s-stack>
+              )}
+            </s-box>
+          </s-card>
         </s-stack>
       )}
 
@@ -300,74 +513,99 @@ export default function CampaignDetail() {
               {conflicts.length === 0 ? (
                 <s-banner tone="success">No price conflicts detected for this campaign.</s-banner>
               ) : (
-                <s-table>
-                  <s-table-header-row>
-                    <s-table-header listSlot="primary">Date/Time</s-table-header>
-                    <s-table-header>Variant ID</s-table-header>
-                    <s-table-header listSlot="secondary">Message</s-table-header>
-                  </s-table-header-row>
+                <>
+                  <s-table>
+                    <s-table-header-row>
+                      <s-table-header listSlot="primary">Date/Time</s-table-header>
+                      <s-table-header>Product Variant</s-table-header>
+                      <s-table-header format="numeric">Baseline Price</s-table-header>
+                      <s-table-header format="numeric">Applied Price</s-table-header>
+                      <s-table-header>Winner</s-table-header>
+                      <s-table-header listSlot="secondary">Conflicting Campaigns</s-table-header>
+                    </s-table-header-row>
 
-                  <s-table-body>
-                    {conflicts.map((log) => (
-                      <s-table-row key={log.id}>
-                        <s-table-cell>{new Date(log.createdAt).toLocaleString()}</s-table-cell>
-                        <s-table-cell>
-                          <s-badge>{((log.metadata as any)?.variantId ?? "").split("/").pop()}</s-badge>
-                        </s-table-cell>
-                        <s-table-cell>
-                          <s-text>{log.message}</s-text>
-                        </s-table-cell>
-                      </s-table-row>
-                    ))}
-                  </s-table-body>
-                </s-table>
+                    <s-table-body>
+                      {paginatedConflicts.map((log) => {
+                        const meta = (log.metadata as any) || {};
+                        const variantId = meta.variantId || "";
+                        const variantDetails = variantDetailsMap[variantId];
+                        const winningCampaignName = campaignNamesMap[meta.chosenCampaignId] || meta.chosenCampaignId || "Unknown";
+                        const otherCampaignNames = (meta.conflictingCampaignIds || [])
+                          .map((cid: string) => campaignNamesMap[cid] || cid)
+                          .filter(Boolean)
+                          .join(", ");
+
+                        const productImage = variantDetails?.product?.featuredImage?.url || "https://picsum.photos/id/29/80/80";
+                        const productTitle = variantDetails?.product?.title || "Unknown Product";
+                        const variantTitle = variantDetails?.title && variantDetails.title !== "Default Title" ? ` (${variantDetails.title})` : "";
+
+                        return (
+                          <s-table-row key={log.id}>
+                            <s-table-cell>{new Date(log.createdAt).toLocaleString()}</s-table-cell>
+                            <s-table-cell>
+                              <s-stack direction="inline" gap="small" alignItems="center">
+                                <s-clickable
+                                  accessibilityLabel={productTitle}
+                                  border="base" borderRadius="base" overflow="hidden"
+                                  inlineSize="32px" blockSize="32px"
+                                >
+                                  <s-image objectFit="cover" src={productImage} />
+                                </s-clickable>
+                                <s-stack direction="block" gap="none">
+                                  <s-text><strong>{productTitle}{variantTitle}</strong></s-text>
+                                  <s-text color="subdued">ID: {variantId.split("/").pop()}</s-text>
+                                </s-stack>
+                              </s-stack>
+                            </s-table-cell>
+                            <s-table-cell>
+                              <s-text>${(meta.originalPrice ?? 0).toFixed(2)}</s-text>
+                            </s-table-cell>
+                            <s-table-cell>
+                              <s-text tone="success"><strong>${(meta.chosenPrice ?? 0).toFixed(2)}</strong></s-text>
+                            </s-table-cell>
+                            <s-table-cell>
+                              <s-badge tone="success">{winningCampaignName}</s-badge>
+                            </s-table-cell>
+                            <s-table-cell>
+                              {otherCampaignNames ? (
+                                <s-text color="subdued">{otherCampaignNames}</s-text>
+                              ) : (
+                                <s-text color="subdued">—</s-text>
+                              )}
+                            </s-table-cell>
+                          </s-table-row>
+                        );
+                      })}
+                    </s-table-body>
+                  </s-table>
+
+                  {/* Pagination */}
+                  {totalConflictPages > 1 && (
+                    <s-box paddingBlockStart="base">
+                      <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
+                        <s-button
+                          disabled={displayConflictPage === 1 ? true : undefined}
+                          onClick={(e: any) => { e.preventDefault(); if (displayConflictPage > 1) setCurrentConflictPage(displayConflictPage - 1); }}
+                        >
+                          Previous
+                        </s-button>
+                        <s-text>Page {displayConflictPage} of {totalConflictPages}</s-text>
+                        <s-button
+                          disabled={displayConflictPage === totalConflictPages ? true : undefined}
+                          onClick={(e: any) => { e.preventDefault(); if (displayConflictPage < totalConflictPages) setCurrentConflictPage(displayConflictPage + 1); }}
+                        >
+                          Next
+                        </s-button>
+                      </s-stack>
+                    </s-box>
+                  )}
+                </>
               )}
             </s-stack>
           </s-box>
         </s-card>
       )}
 
-      {/* TAB 3: Logs */}
-      {activeTab === 2 && (
-        <s-card heading="Activity Logs">
-          <s-box padding="base">
-            {logs.length === 0 ? (
-              <s-text tone="neutral">No activity logs yet.</s-text>
-            ) : (
-              <s-table>
-                <s-table-header-row>
-                  <s-table-header listSlot="primary">Date/Time</s-table-header>
-                  <s-table-header>Event</s-table-header>
-                  <s-table-header listSlot="secondary">Message</s-table-header>
-                </s-table-header-row>
-
-                <s-table-body>
-                  {logs.map((log) => {
-                    const toneMap: Record<string, "info" | "auto" | "neutral" | "success" | "caution" | "warning" | "critical"> = {
-                      PRICE_UPDATED: "success",
-                      PRICE_RESTORED: "success",
-                      SCHEDULER_ERROR: "critical",
-                      STAGE_STARTED: "info",
-                      STAGE_COMPLETED: "info"
-                    };
-                    return (
-                      <s-table-row key={log.id}>
-                        <s-table-cell>{new Date(log.createdAt).toLocaleString()}</s-table-cell>
-                        <s-table-cell>
-                          <s-badge tone={toneMap[log.event] ?? "neutral"}>{log.event}</s-badge>
-                        </s-table-cell>
-                        <s-table-cell>
-                          <s-text>{log.message}</s-text>
-                        </s-table-cell>
-                      </s-table-row>
-                    );
-                  })}
-                </s-table-body>
-              </s-table>
-            )}
-          </s-box>
-        </s-card>
-      )}
       {/* Delete Confirmation Modal */}
       <s-modal
         id="delete-modal"

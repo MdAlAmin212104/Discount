@@ -75,7 +75,7 @@ export async function checkAndResolveConflicts(
     if (discountType === "PERCENTAGE") {
       candidatePrice = originalPrice * (1 - discountValue / 100);
     } else if (discountType === "FIX_AMOUNT") {
-      candidatePrice = Math.max(0, originalPrice - discountValue);
+      candidatePrice = discountValue;
     }
 
     candidates.push({

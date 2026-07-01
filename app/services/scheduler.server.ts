@@ -111,7 +111,7 @@ async function processStageJob(job: any) {
         if (campaign.discountType === "PERCENTAGE") {
           proposedPrice = originalPrice * (1 - stage.discountValue / 100);
         } else if (campaign.discountType === "FIX_AMOUNT") {
-          proposedPrice = Math.max(0, originalPrice - stage.discountValue);
+          proposedPrice = stage.discountValue;
         }
 
         // 4. Check for conflicts with other active campaigns
@@ -303,7 +303,7 @@ async function processEndingCampaigns() {
               if (discountType === "PERCENTAGE") {
                 price = snapshot.originalPrice * (1 - discountValue / 100);
               } else if (discountType === "FIX_AMOUNT") {
-                price = Math.max(0, snapshot.originalPrice - discountValue);
+                price = discountValue;
               }
 
               return {

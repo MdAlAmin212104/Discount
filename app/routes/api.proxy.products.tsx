@@ -34,24 +34,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       );
     }
 
-    // 2. Fetch the active campaign
-    const activeCampaign = await prisma.campaign.findFirst({
-      where: {
-        shopId: shop.id,
-        status: "ACTIVE",
-      },
-      include: {
-        stages: {
-          where: { status: "ACTIVE" },
-        },
-      },
-    });
+    // 2. Fetch the campaign (specific campaignId or active fallback)
+    const campaignIdParam = url.searchParams.get("campaignId");
 
-    if (!activeCampaign) {
+    let campaign;
+    if (campaignIdParam && campaignIdParam !== "active") {
+      campaign = await prisma.campaign.findFirst({
+        where: { id: campaignIdParam, shopId: shop.id },
+        include: {
+          stages: { orderBy: { stageNumber: "asc" } },
+        },
+      });
+    } else {
+      campaign = await prisma.campaign.findFirst({
+        where: { shopId: shop.id, status: "ACTIVE" },
+        include: {
+          stages: { orderBy: { stageNumber: "asc" } },
+        },
+      });
+    }
+
+    if (!campaign) {
       return new Response(
         JSON.stringify({
           campaignName: null,
           stageLabel: null,
+          stages: [],
           products: [],
           settings: shop.themeSettings,
         }),
@@ -65,7 +73,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       );
     }
 
-    const activeStage = activeCampaign.stages[0];
+    // Determine currently active stage by start/end date comparison
+    const now = new Date();
+    const activeStage = campaign.stages.find(
+      (stage) => new Date(stage.startDate) <= now && new Date(stage.endDate) >= now
+    ) || campaign.stages[0];
 
     let stageLabel = activeStage?.label || (activeStage ? `Stage ${activeStage.stageNumber}` : "");
     let isCirclePhase = false;
@@ -90,22 +102,46 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           autoApply = parsed.autoApply === true;
         }
       } catch (e) {
-        // Label is not JSON or not standard, keep defaults
+        // Label is not JSON
       }
     }
 
-    // 3. Fetch all variant snapshots for this active campaign
+    // Parse all stages to return to client
+    const returnedStages = campaign.stages.map((s) => {
+      let parsedLabel: any = {};
+      try {
+        parsedLabel = JSON.parse(s.label || "{}");
+      } catch {}
+      return {
+        id: s.id,
+        stageNumber: s.stageNumber,
+        label: parsedLabel.label || s.label || `Stage ${s.stageNumber}`,
+        phaseTitle: parsedLabel.phaseTitle || "",
+        discountValue: s.discountValue,
+        startDate: s.startDate,
+        endDate: s.endDate,
+        shippingNoteLeft: parsedLabel.shippingNoteLeft || "",
+        shippingNoteRight: parsedLabel.shippingNoteRight || "",
+        status: s.status,
+      };
+    });
+
+    // 3. Fetch all variant snapshots for this campaign
     const snapshots = await prisma.variantPriceSnapshot.findMany({
       where: {
         shopId: shop.id,
-        campaignId: activeCampaign.id,
+        campaignId: campaign.id,
       },
     });
 
     if (snapshots.length === 0) {
       return new Response(
         JSON.stringify({
-          campaignName: activeCampaign.name,
+          campaignName: campaign.name,
+          discountType: campaign.discountType,
+          timezone: campaign.timezone,
+          startDate: campaign.startDate,
+          endDate: campaign.endDate,
           stageLabel,
           isCirclePhase,
           phaseTitle,
@@ -114,6 +150,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shippingNoteRight,
           visible,
           autoApply,
+          stages: returnedStages,
           products: [],
           settings: shop.themeSettings,
         }),
@@ -185,7 +222,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return new Response(
       JSON.stringify({
-        campaignName: activeCampaign.name,
+        campaignName: campaign.name,
+        discountType: campaign.discountType,
+        timezone: campaign.timezone,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
         stageLabel,
         isCirclePhase,
         phaseTitle,
@@ -194,6 +235,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         shippingNoteRight,
         visible,
         autoApply,
+        stages: returnedStages,
         products,
         settings: shop.themeSettings,
       }),

@@ -1,66 +1,266 @@
+<style>
+  .circle-{{ block.id }} {
+    --bg-color: {{ block.settings.bg_color | default: '#f0efeb' }};
+    --text-color: {{ block.settings.text_color | default: '#0e0e0d' }};
+    --border-color: {{ block.settings.border_color | default: '#e2dfd9' }};
+    --card-color: {{ block.settings.card_color | default: '#faf9f7' }};
+    --accent-color: {{ block.settings.accent_color | default: '#1a3a2a' }};
+    --muted-color: {{ block.settings.muted_color | default: '#9a9792' }};
+    --padding-top: {{ block.settings.section_padding_top | default: 40 }}px;
+    --padding-bottom: {{ block.settings.section_padding_bottom | default: 40 }}px;
+    --max-width: {{ block.settings.max_width | default: 580 }}px;
+  }
+</style>
+
 <div 
-  class="discount-showcase-container" 
+  class="discount-showcase-container circle-{{ block.id }}" 
   data-shop="{{ shop.permanent_domain }}"
-  data-campaign-id="{{ block.settings.campaign_id }}"
-  data-show-countdown="{{ block.settings.show_countdown }}"
-  data-show-stage-label="{{ block.settings.show_stage_label }}"
-  data-items-per-row="{{ block.settings.items_per_row }}"
+  data-campaign-id="{{ block.settings.campaign_id | default: 'active' }}"
+  data-block-id="{{ block.id }}"
+  data-button-action="{{ block.settings.button_action | default: 'cart' }}"
+  data-member-label="{{ block.settings.member_label | escape }}"
+  data-welcome-heading="{{ block.settings.welcome_heading | escape }}"
+  data-welcome-emphasis="{{ block.settings.welcome_emphasis | escape }}"
+  data-product-heading="{{ block.settings.product_heading | escape }}"
+  data-reserve-button-text="{{ block.settings.reserve_button_text | escape }}"
 >
-  <!-- Active campaign products will be rendered here dynamically via JS -->
-  <div class="discount-showcase-loading">Loading promotional products...</div>
+  <div class="circle-shell">
+    <!-- Offer Content Shell (JS will display it after load) -->
+    <div class="circle-offer-content" id="circle-offer-content-{{ block.id }}" style="display:none;">
+      <nav class="circle-nav">
+        <div class="circle-nav-right">
+          <div class="circle-member-pill">{{ block.settings.member_label | default: 'Inner Circle' }}</div>
+          {% if customer %}
+            <a href="{{ routes.account_logout_url }}" class="circle-signout">Sign Out</a>
+          {% endif %}
+        </div>
+      </nav>
+
+      <div class="circle-hero">
+        <div class="circle-live-line">
+          <span class="circle-live-dot"></span>
+          <span class="circle-live-text" data-live-status-text>Active Open Now</span>
+        </div>
+        <h1 data-welcome-heading-wrapper>
+          {{ block.settings.welcome_heading | default: 'Exclusive Access' }}
+          <br>
+          <em data-welcome-emphasis-wrapper>{{ block.settings.welcome_emphasis | default: 'Offers' }}</em>
+        </h1>
+        <p class="circle-hero-sub hero-sub">Members get every release first, before public launch.</p>
+      </div>
+
+      <!-- Drop Strip Grid -->
+      <div class="circle-drop-strip" data-drop-strip>
+        <!-- Injected dynamically by JS -->
+      </div>
+
+      <!-- Product Slider Card -->
+      <div class="circle-card circle-products-card">
+        <div class="circle-card-label">{{ block.settings.product_heading | default: 'Selected Pieces' }}</div>
+        <div class="circle-slider-wrapper" data-slider>
+          <button type="button" class="circle-arrow circle-arrow-prev" data-arrow="prev" aria-label="Previous" disabled>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+          </button>
+          <div class="circle-slider-viewport" data-slider-viewport>
+            <div class="circle-slider-track" data-slider-track>
+              <div class="circle-slider-loading" style="padding: 24px; text-align: center; color: var(--muted); font-size: 11px;">
+                Loading custom collection products...
+              </div>
+            </div>
+          </div>
+          <button type="button" class="circle-arrow circle-arrow-next" data-arrow="next" aria-label="Next">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+          </button>
+        </div>
+        <div class="circle-slider-dots" data-slider-dots></div>
+      </div>
+
+      <!-- Variant Selector Placement (Injected dynamically) -->
+      <div class="circle-inline-options-container" data-options-container></div>
+
+      <!-- Reserve CTA Card -->
+      <div class="circle-action-block" data-action-block>
+        <div class="circle-action-eyebrow" data-action-eyebrow>—</div>
+        <div style="margin-bottom:10px;">
+          <span class="drop-tag" style="background:var(--forest-tint);color:var(--forest);font-size:9px;letter-spacing:0.16em;text-transform:uppercase;padding:6px 16px;border-radius:99px;display:inline-block;">Open now</span>
+        </div>
+
+        <div class="circle-countdown-wrap">
+          <div class="circle-countdown-label" data-countdown-label>Promotion ends in</div>
+          <div class="circle-countdown">
+            <div class="circle-t-block">
+              <span class="circle-t-num" data-days>00</span><span class="circle-t-lbl">Days</span>
+            </div>
+            <span class="circle-t-sep">:</span>
+            <div class="circle-t-block">
+              <span class="circle-t-num" data-hours>00</span><span class="circle-t-lbl">Hrs</span>
+            </div>
+            <span class="circle-t-sep">:</span>
+            <div class="circle-t-block">
+              <span class="circle-t-num" data-minutes>00</span><span class="circle-t-lbl">Min</span>
+            </div>
+            <span class="circle-t-sep">:</span>
+            <div class="circle-t-block">
+              <span class="circle-t-num" data-seconds>00</span><span class="circle-t-lbl">Sec</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="circle-price-block">
+          <div class="circle-price-main">
+            <div class="circle-price-context">Your price today</div>
+            <div style="display: flex; align-items: center;">
+              <div class="circle-price-amount" data-preview-sale-price>—</div>
+              <span class="inner_circle" style="font-size:18px;font-weight:300;color:#1a3a2a; margin-left: 10px; font-family: Cormorant Garamond;">(Inner Circle)</span>
+            </div>
+          </div>
+          <div class="circle-price-future">
+            <div class="circle-price-context">Public Release</div>
+            <div class="circle-price-was" data-preview-compare-price>—</div>
+          </div>
+        </div>
+
+        <button type="button" class="circle-cta-btn" data-reserve-main>
+          {{ block.settings.reserve_button_text | default: 'Reserve Now' }}
+        </button>
+        <div class="circle-cta-meta" data-cta-meta>
+          <!-- Injected by JS -->
+        </div>
+      </div>
+
+      <!-- Locked / Upcoming Drop rows -->
+      <div class="circle-locked-rows-wrapper" data-locked-rows-wrapper>
+        <!-- Injected dynamically -->
+      </div>
+
+    </div>
+    
+    <!-- Fallback Loader -->
+    <div class="discount-showcase-loading" id="discount-showcase-loading-{{ block.id }}">
+      Loading promotions...
+    </div>
+  </div>
 </div>
 
-<!-- Modal Structure for View Details (Pure HTML/CSS/JS) -->
-<div id="discount-product-modal" class="discount-modal">
-  <div class="discount-modal-content">
-    <span class="discount-modal-close">&times;</span>
-    <div class="discount-modal-body">
-      <div class="discount-modal-media">
-        <img id="modal-product-image" src="" alt="Product Image" width="600" height="600" loading="lazy">
+<!-- Product details modal -->
+<div class="circle-modal-overlay" id="circle-product-modal-{{ block.id }}" style="display:none;" role="dialog" aria-modal="true" aria-label="Product details">
+  <div class="circle-modal">
+    <button type="button" class="circle-modal-close" id="circle-modal-close-{{ block.id }}" aria-label="Close">✕</button>
+    <div class="circle-modal-gallery" data-modal-gallery>
+      <div class="circle-modal-img-track" data-modal-img-track></div>
+      <button type="button" class="circle-modal-img-prev" data-modal-img-prev aria-label="Previous image" style="display:none;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <button type="button" class="circle-modal-img-next" data-modal-img-next aria-label="Next image" style="display:none;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
+      <div class="circle-modal-img-dots" data-modal-img-dots></div>
+    </div>
+    <div class="circle-modal-body">
+      <div class="modal-exclusive" data-modal-exclusive>
+        <div class="modal-exclusive-dot"></div>
+        Exclusively for Circle Members
       </div>
-      <div class="discount-modal-info">
-        <h2 id="modal-product-title">Product Title</h2>
-        
-        <div class="discount-modal-prices">
-          <span id="modal-discounted-price" class="sale-price">$0.00</span>
-          <span id="modal-original-price" class="original-price">$0.00</span>
-        </div>
-
-        <div id="modal-stage-badge" class="discount-stage-badge"></div>
-        
-        <!-- Circle Member Offer Extended Metadata Fields -->
-        <div id="modal-phase-title" class="discount-phase-title" style="display: none; font-size: 15px; font-weight: 700; color: var(--ds-sale-price-color, #E63946); margin-top: 8px;"></div>
-        
-        <div id="modal-shipping-notes" class="discount-shipping-notes" style="display: none; justify-content: space-between; font-size: 12px; font-style: italic; color: #6B7280; margin-top: 8px; border-top: 1px dashed #E5E7EB; border-bottom: 1px dashed #E5E7EB; padding: 6px 0;">
-          <span id="modal-shipping-left"></span>
-          <span id="modal-shipping-right"></span>
-        </div>
-
-        <div id="modal-discount-code" class="discount-code-container" style="display: none; margin-top: 10px; padding: 8px 12px; background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 6px; font-size: 13px; color: #047857; display: flex; align-items: center; justify-content: space-between;">
-          <span>Discount Code: <strong id="modal-code-text"></strong></span>
-          <span id="modal-code-status" style="font-size: 11px; font-weight: 600; text-transform: uppercase; background-color: #D1FAE5; padding: 2px 6px; border-radius: 4px;"></span>
-        </div>
-        
-        <div id="modal-countdown" class="discount-countdown-timer"></div>
-        
-        <p id="modal-product-description" class="discount-product-desc">Loading description...</p>
-
-        <form id="modal-add-to-cart-form">
-          <input type="hidden" id="modal-variant-id" name="id" value="">
-          <div class="discount-quantity-selector">
-            <label for="modal-quantity">Quantity:</label>
-            <input type="number" id="modal-quantity" name="quantity" value="1" min="1">
-          </div>
-          <button type="submit" id="modal-submit-btn" class="discount-add-to-cart-btn">Add to Cart</button>
-        </form>
+      <div class="modal-tagline" data-modal-tagline>
+        Yours before<br><em>the rest of the world.</em>
       </div>
+      <div class="modal-shipping" data-modal-shipping>
+        <div class="modal-shipping-text" data-modal-shipping-text>In your hands in ~14 days</div>
+      </div>
+      <div class="modal-price-row">
+        <div>
+          <div class="modal-price-label">Inner Circle Price</div>
+          <div class="modal-price-circle" data-modal-sale>—</div>
+        </div>
+        <div class="modal-price-public">
+          <div class="modal-price-label">Public Release</div>
+          <div class="modal-price-public-amt" data-modal-was>—</div>
+        </div>
+      </div>
+      <div class="modal-product-name" data-modal-title>Product Title</div>
+      
+      <!-- Option Swatches list -->
+      <div class="circle-modal-options-selector" data-modal-options></div>
+      <div class="circle-modal-qty-container" style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
+        <label style="font-size: 10px; text-transform: uppercase;">Quantity:</label>
+        <input type="number" id="modal-qty-{{ block.id }}" value="1" min="1" style="width: 60px; padding: 6px; border: 1px solid var(--stone); border-radius: 4px; font-family: inherit;">
+      </div>
+
+      <button type="button" class="circle-cta-btn" id="modal-add-to-cart-{{ block.id }}" style="margin-top: 20px;">
+        Add to Cart
+      </button>
+
+      <p class="circle-modal-desc" data-modal-desc>Description loading...</p>
+    </div>
+  </div>
+</div>
+
+<!-- Size Guide modal -->
+<div class="circle-modal-overlay circle-size-modal-overlay" id="circle-size-modal-{{ block.id }}" style="display:none;" role="dialog" aria-modal="true" aria-label="Size guide">
+  <div class="circle-modal circle-size-modal" style="max-height:85vh;overflow-y:auto;">
+    <div style="padding:24px 24px 0;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <div>
+        <div style="font-size:9px;letter-spacing:0.24em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Exclusive</div>
+        <div style="font-family:var(--serif);font-size:22px;font-weight:400;color:var(--ink);" id="size-guide-title-{{ block.id }}">Size Guide</div>
+      </div>
+      <button type="button" class="circle-modal-close" id="circle-size-close-{{ block.id }}" aria-label="Close" style="position:static;width:32px;height:32px;border-radius:50%;background:var(--bg);border:0.5px solid var(--stone);cursor:pointer;font-size:16px;color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        ✕
+      </button>
+    </div>
+    <div style="padding:16px 24px 20px;">
+      <div class="unit-toggle">
+        <button id="size-btn-cm-{{ block.id }}" class="active">cm</button>
+        <button id="size-btn-in-{{ block.id }}" class="inactive">inches</button>
+      </div>
+    </div>
+    <div style="padding:0 24px 32px;overflow-x:auto;">
+      <table class="size-guide-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>XS</th>
+            <th>S</th>
+            <th>M</th>
+            <th>L</th>
+            <th>XL</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Chest</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="86" data-in="34">86</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="91.5" data-in="36">91.5</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="96.5" data-in="38">96.5</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="101.5" data-in="40">101.5</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="106.5" data-in="42">106.5</td>
+          </tr>
+          <tr>
+            <td>Waist</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="71" data-in="28">71</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="76" data-in="30">76</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="81" data-in="32">81</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="86" data-in="34">86</td>
+            <td class="sz-cell-{{ block.id }}" data-cm="91.5" data-in="36">91.5</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size:9px;color:var(--muted);letter-spacing:0.06em;line-height:1.8;margin-top:16px;">
+        All measurements in <span id="size-unit-label-{{ block.id }}">centimetres (cm)</span>. Measure your body, not the garment.
+      </p>
     </div>
   </div>
 </div>
 
 <link rel="stylesheet" href="{{ 'discount-showcase.css' | asset_url }}">
 <script src="{{ 'discount-showcase.js' | asset_url }}" defer="defer"></script>
-
 
 {% schema %}
 {
@@ -70,32 +270,106 @@
     {
       "type": "text",
       "id": "campaign_id",
-      "label": "Campaign ID (Leave blank for active)",
+      "label": "Campaign ID (Leave blank to use active campaign)",
       "default": "active"
     },
-
     {
-      "type": "checkbox",
-      "id": "show_countdown",
-      "label": "Show Countdown",
-      "default": true
+      "type": "text",
+      "id": "member_label",
+      "label": "Member Pill Label",
+      "default": "Inner Circle Member"
     },
     {
-      "type": "checkbox",
-      "id": "show_stage_label",
-      "label": "Show Stage Label",
-      "default": true
+      "type": "text",
+      "id": "welcome_heading",
+      "label": "Welcome Heading",
+      "default": "Exclusive Access"
+    },
+    {
+      "type": "text",
+      "id": "welcome_emphasis",
+      "label": "Welcome Emphasis Text",
+      "default": "Offers"
+    },
+    {
+      "type": "text",
+      "id": "product_heading",
+      "label": "Product Section Heading",
+      "default": "Selected Pieces"
+    },
+    {
+      "type": "text",
+      "id": "reserve_button_text",
+      "label": "Reserve Button Text",
+      "default": "Reserve Now"
     },
     {
       "type": "select",
-      "id": "items_per_row",
-      "label": "Items Per Row",
+      "id": "button_action",
+      "label": "Button Click Action",
       "options": [
-        { "value": "2", "label": "2" },
-        { "value": "3", "label": "3" },
-        { "value": "4", "label": "4" }
+        { "value": "cart", "label": "Add to Cart" },
+        { "value": "checkout", "label": "Direct Checkout" }
       ],
-      "default": "3"
+      "default": "cart"
+    },
+    {
+      "type": "header",
+      "content": "Design & Styling"
+    },
+    {
+      "type": "color",
+      "id": "bg_color",
+      "label": "Background Color",
+      "default": "#f0efeb"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text Color",
+      "default": "#0e0e0d"
+    },
+    {
+      "type": "color",
+      "id": "border_color",
+      "label": "Border Color",
+      "default": "#e2dfd9"
+    },
+    {
+      "type": "color",
+      "id": "card_color",
+      "label": "Card Background Color",
+      "default": "#faf9f7"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent Color",
+      "default": "#1a3a2a"
+    },
+    {
+      "type": "color",
+      "id": "muted_color",
+      "label": "Muted Text Color",
+      "default": "#9a9792"
+    },
+    {
+      "type": "number",
+      "id": "section_padding_top",
+      "label": "Section Padding Top (px)",
+      "default": 40
+    },
+    {
+      "type": "number",
+      "id": "section_padding_bottom",
+      "label": "Section Padding Bottom (px)",
+      "default": 40
+    },
+    {
+      "type": "number",
+      "id": "max_width",
+      "label": "Maximum Width (px)",
+      "default": 580
     }
   ]
 }
