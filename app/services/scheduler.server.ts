@@ -195,6 +195,28 @@ export async function processStageJob(job: any) {
       data: { status: CampaignStatus.ACTIVE },
     });
 
+    // Activate the Shopify discount for this stage
+    if (stage.shopifyDiscountId) {
+      try {
+        const actRes = await admin.graphql(`#graphql
+          mutation discountCodeActivate($id: ID!) {
+            discountCodeActivate(id: $id) {
+              codeDiscountNode { id }
+              userErrors { field message }
+            }
+          }`, { variables: { id: stage.shopifyDiscountId } });
+        const actJson = await actRes.json();
+        const actErrors = actJson.data?.discountCodeActivate?.userErrors;
+        if (actErrors && actErrors.length > 0) {
+          console.error(`Scheduler failed to activate Shopify discount for stage ${stage.id}:`, JSON.stringify(actErrors));
+        } else {
+          console.log(`Scheduler successfully activated Shopify discount ${stage.shopifyDiscountId} for stage ${stage.id}`);
+        }
+      } catch (actErr) {
+        console.error(`Scheduler error activating Shopify discount for stage ${stage.id}:`, actErr);
+      }
+    }
+
     // Log Stage Start
     await prisma.activityLog.create({
       data: {

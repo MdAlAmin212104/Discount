@@ -145,12 +145,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = await getOrCreateShop(session.shop, session.accessToken || "");
 
   const formData = await request.formData();
   const intent = formData.get("intent");
-  const { admin } = await unauthenticated.admin(shop.domain);
 
   const campaign = await prisma.campaign.findFirst({
     where: { id: params.id, shopId: shop.id },
@@ -184,6 +183,29 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (intent === "DELETE") {
     try {
       await restoreVariants();
+
+      // Delete associated Shopify discounts
+      for (const stage of campaign.stages) {
+        if (stage.shopifyDiscountId) {
+          try {
+            const res = await admin.graphql(`#graphql
+              mutation discountCodeDelete($id: ID!) {
+                discountCodeDelete(id: $id) {
+                  deletedCodeDiscountId
+                  userErrors { field message }
+                }
+              }`, { variables: { id: stage.shopifyDiscountId } });
+            const resJson = await res.json();
+            const errors = resJson.data?.discountCodeDelete?.userErrors;
+            if (errors && errors.length > 0) {
+              console.error(`Shopify discount delete errors for stage ${stage.id}:`, JSON.stringify(errors));
+            }
+          } catch (delErr) {
+            console.error(`Error calling Shopify discount delete for stage ${stage.id}:`, delErr);
+          }
+        }
+      }
+
       await prisma.schedulerJob.deleteMany({ where: { stageId: { in: campaign.stages.map((s) => s.id) } } });
       await prisma.variantPriceSnapshot.deleteMany({ where: { campaignId: campaign.id } });
       await prisma.campaign.delete({ where: { id: campaign.id } });
@@ -195,10 +217,33 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     try {
       await restoreVariants();
       await prisma.variantPriceSnapshot.deleteMany({ where: { campaignId: campaign.id } });
+
+      // Deactivate associated Shopify discounts
+      for (const stage of campaign.stages) {
+        if (stage.shopifyDiscountId) {
+          try {
+            const res = await admin.graphql(`#graphql
+              mutation discountCodeDeactivate($id: ID!) {
+                discountCodeDeactivate(id: $id) {
+                  codeDiscountNode { id }
+                  userErrors { field message }
+                }
+              }`, { variables: { id: stage.shopifyDiscountId } });
+            const resJson = await res.json();
+            const errors = resJson.data?.discountCodeDeactivate?.userErrors;
+            if (errors && errors.length > 0) {
+              console.error(`Shopify discount deactivate errors for stage ${stage.id}:`, JSON.stringify(errors));
+            }
+          } catch (deacErr) {
+            console.error(`Error calling Shopify discount deactivate for stage ${stage.id}:`, deacErr);
+          }
+        }
+      }
+
       await prisma.campaign.update({ where: { id: campaign.id }, data: { status: CampaignStatus.DRAFT } });
       await prisma.campaignStage.updateMany({ where: { campaignId: campaign.id }, data: { status: StageStatus.PENDING } });
       await prisma.schedulerJob.deleteMany({ where: { stageId: { in: campaign.stages.map((s) => s.id) } } });
-      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" paused (moved to draft).` } });
+      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" paused (moved to draft) and Shopify discounts deactivated.` } });
       return { success: true };
     } catch (e: any) { return { error: e.message }; }
   }
@@ -206,22 +251,102 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (intent === "RESUME") {
     try {
       const now = new Date();
-      if (campaign.endDate <= now) {
-        await prisma.campaign.update({ where: { id: campaign.id }, data: { status: CampaignStatus.COMPLETED } });
-        return { error: "Campaign end date is in the past." };
+      let currentTime = new Date(now.getTime() + 1000); // 1-second offset to prevent microsecond differences
+
+      // 1. Sort stages by stageNumber ascending to shift them sequentially starting from now
+      const sortedStages = [...campaign.stages].sort((a, b) => a.stageNumber - b.stageNumber);
+      
+      const shiftedStages = [];
+      for (const stage of sortedStages) {
+        const duration = new Date(stage.endDate).getTime() - new Date(stage.startDate).getTime();
+        const newStartDate = new Date(currentTime.getTime());
+        const newEndDate = new Date(currentTime.getTime() + duration);
+
+        // Update the stage dates and reset status to PENDING in database
+        const updatedStage = await prisma.campaignStage.update({
+          where: { id: stage.id },
+          data: {
+            startDate: newStartDate,
+            endDate: newEndDate,
+            status: StageStatus.PENDING,
+          },
+        });
+
+        // Update Shopify discount dates and activate it
+        if (stage.shopifyDiscountId) {
+          try {
+            // Update Shopify startsAt and endsAt dates
+            const updateRes = await admin.graphql(`#graphql
+              mutation discountCodeBasicUpdate($id: ID!, $basicCodeDiscount: DiscountCodeBasicInput!) {
+                discountCodeBasicUpdate(id: $id, basicCodeDiscount: $basicCodeDiscount) {
+                  codeDiscountNode { id }
+                  userErrors { field message }
+                }
+              }`, {
+              variables: {
+                id: stage.shopifyDiscountId,
+                basicCodeDiscount: {
+                  title: `${campaign.name} - Phase ${stage.stageNumber}`,
+                  startsAt: newStartDate.toISOString(),
+                  endsAt: newEndDate.toISOString(),
+                },
+              },
+            });
+            const updateJson = await updateRes.json();
+            const updateErrors = updateJson.data?.discountCodeBasicUpdate?.userErrors;
+            if (updateErrors && updateErrors.length > 0) {
+              console.error(`Shopify discount update errors for stage ${stage.id}:`, JSON.stringify(updateErrors));
+            }
+
+            // Activate Shopify discount code
+            const actRes = await admin.graphql(`#graphql
+              mutation discountCodeActivate($id: ID!) {
+                discountCodeActivate(id: $id) {
+                  codeDiscountNode { id }
+                  userErrors { field message }
+                }
+              }`, { variables: { id: stage.shopifyDiscountId } });
+            const actJson = await actRes.json();
+            const actErrors = actJson.data?.discountCodeActivate?.userErrors;
+            if (actErrors && actErrors.length > 0) {
+              console.error(`Shopify discount activate errors for stage ${stage.id}:`, JSON.stringify(actErrors));
+            }
+          } catch (err) {
+            console.error(`Error updating/activating Shopify discount for stage ${stage.id}:`, err);
+          }
+        }
+
+        shiftedStages.push(updatedStage);
+        currentTime = newEndDate;
       }
-      for (const stage of campaign.stages) {
+
+      // 2. Update the campaign itself with the new start/end dates
+      const campaignStartDate = shiftedStages[0].startDate;
+      const campaignEndDate = shiftedStages[shiftedStages.length - 1].endDate;
+
+      await prisma.campaign.update({
+        where: { id: campaign.id },
+        data: {
+          startDate: campaignStartDate,
+          endDate: campaignEndDate,
+        },
+      });
+
+      // 3. Create or upsert scheduler jobs based on the new shifted dates
+      for (const stage of shiftedStages) {
         if (stage.endDate > now) {
+          const scheduledAt = stage.startDate <= now ? now : stage.startDate;
           await prisma.schedulerJob.upsert({
             where: { stageId: stage.id },
-            update: { scheduledAt: stage.startDate <= now ? now : stage.startDate, status: JobStatus.PENDING, attempts: 0 },
-            create: { shopId: shop.id, stageId: stage.id, scheduledAt: stage.startDate <= now ? now : stage.startDate, status: JobStatus.PENDING },
+            update: { scheduledAt, status: JobStatus.PENDING, attempts: 0 },
+            create: { shopId: shop.id, stageId: stage.id, scheduledAt, status: JobStatus.PENDING },
           });
         }
       }
-      const nextStatus = campaign.startDate <= now ? CampaignStatus.ACTIVE : CampaignStatus.SCHEDULED;
+
+      const nextStatus = campaignStartDate <= now ? CampaignStatus.ACTIVE : CampaignStatus.SCHEDULED;
       await prisma.campaign.update({ where: { id: campaign.id }, data: { status: nextStatus } });
-      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" resumed.` } });
+      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" resumed. Dates shifted starting from now.` } });
       return { success: true };
     } catch (e: any) { return { error: e.message }; }
   }
@@ -285,7 +410,7 @@ export default function CampaignDetail() {
     <s-page heading={campaign.name}>
       <s-link slot="breadcrumb-actions" onClick={() => navigate("/app/campaigns")}>Campaigns</s-link>
 
-      {(campaign.status === "ACTIVE" || campaign.status === "SCHEDULED") && (
+      {/* {(campaign.status === "ACTIVE" || campaign.status === "SCHEDULED") && (
         <s-button icon="pause-circle" slot="primary-action" variant="primary" onClick={() => submit({ intent: "PAUSE" }, { method: "POST" })}>
           Pause Campaign
         </s-button>
@@ -294,7 +419,7 @@ export default function CampaignDetail() {
         <s-button icon="play-circle" slot="primary-action" variant="primary" onClick={() => submit({ intent: "RESUME" }, { method: "POST" })}>
           Resume Campaign
         </s-button>
-      )}
+      )} */}
       <s-button
         slot="secondary-actions"
         variant="secondary"

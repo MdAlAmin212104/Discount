@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useSubmit, useActionData, useNavigate, useFetcher } from "react-router";
+import { useLoaderData, useSubmit, useActionData, useNavigate, useFetcher, useRevalidator } from "react-router";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -70,21 +70,30 @@ function getCurrentTimeInTz(ianaTimezone: string): { date: string; time: string 
   const parts = formatter.formatToParts(now);
   const get = (type: string) => parts.find((p) => p.type === type)?.value || "00";
   const year = get("year"), month = get("month"), day = get("day");
-  const hour = parseInt(get("hour"), 10);
-  const minute = parseInt(get("minute"), 10);
-  let roundedMinute = minute < 30 ? 30 : 0;
-  let roundedHour = minute < 30 ? hour : hour + 1;
-  let dateStr = `${year}-${month}-${day}`;
-  if (roundedHour >= 24) {
-    roundedHour = 0;
-    const nextDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    const nextFormatter = new Intl.DateTimeFormat("en-CA", {
-      timeZone: ianaTimezone, year: "numeric", month: "2-digit", day: "2-digit",
-    });
-    dateStr = nextFormatter.format(nextDay);
-  }
-  const timeStr = `${String(roundedHour).padStart(2, "0")}:${String(roundedMinute).padStart(2, "0")}`;
+  const hour = get("hour");
+  const minute = get("minute");
+  const dateStr = `${year}-${month}-${day}`;
+  const timeStr = `${hour}:${minute}`;
   return { date: dateStr, time: timeStr };
+}
+
+function getSelectOptionsWithDefault(defaultValue: string) {
+  const exists = TIME_OPTIONS.some((opt) => opt.value === defaultValue);
+  if (exists || !defaultValue) return TIME_OPTIONS;
+
+  const [hours, minutes] = defaultValue.split(":").map(Number);
+  const period = hours < 12 ? "AM" : "PM";
+  const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+  const label = `${String(displayHours).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${period} (Current)`;
+  
+  const customOption = { value: defaultValue, label };
+  const result = [...TIME_OPTIONS, customOption];
+  result.sort((a, b) => {
+    const [hA, mA] = a.value.split(":").map(Number);
+    const [hB, mB] = b.value.split(":").map(Number);
+    return (hA * 60 + mA) - (hB * 60 + mB);
+  });
+  return result;
 }
 
 function addMinutesToTime(dateStr: string, timeStr: string, minutesToAdd: number): { date: string; time: string } {
@@ -517,6 +526,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               where: { id: s.id },
               data: { shopifyDiscountId: item.oldShopifyDiscountId },
             });
+            const sStartDate = new Date(s.startDate);
+            const sEndDate = new Date(s.endDate);
+            if (sStartDate <= now && sEndDate > now) {
+              try {
+                const actRes = await admin.graphql(`#graphql
+                  mutation discountCodeActivate($id: ID!) {
+                    discountCodeActivate(id: $id) {
+                      codeDiscountNode { id }
+                      userErrors { field message }
+                    }
+                  }`, { variables: { id: item.oldShopifyDiscountId } });
+                const actJson = await actRes.json();
+                const actErrors = actJson.data?.discountCodeActivate?.userErrors;
+                if (actErrors && actErrors.length > 0) {
+                  console.error(`Shopify discount reactivate errors for stage ${s.id}:`, JSON.stringify(actErrors));
+                }
+              } catch (actErr) {
+                console.error("Error activating Shopify discount during update:", actErr);
+              }
+            }
           }
         } else {
           const createRes = await admin.graphql(`#graphql
@@ -573,6 +602,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 };
 
+function StatusBadge({ status }: { status: CampaignStatus }) {
+  const toneMap: Record<string, "info" | "auto" | "neutral" | "success" | "caution" | "warning" | "critical"> = {
+    ACTIVE: "success",
+    SCHEDULED: "info",
+    DRAFT: "neutral",
+    COMPLETED: "success",
+    PAUSED: "neutral",
+  };
+  const label = status === "PAUSED" ? "DRAFT" : status;
+  return <s-badge tone={toneMap[status] ?? "neutral"}>{label}</s-badge>;
+}
+
 // ─────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────
@@ -583,8 +624,11 @@ export default function AdditionalPage() {
   const navigate = useNavigate();
   const shopify = useAppBridge();
   const fetcher = useFetcher();
+  const actionFetcher = useFetcher();
+  const revalidator = useRevalidator();
 
-  const campaignId = (loaderData as any)?.campaign?.id || null;
+  const campaign = (loaderData as any)?.campaign || null;
+  const campaignId = campaign?.id || null;
   const storeTimezone = (loaderData as any)?.shopSettings?.timezone || "UTC";
   const offset = (loaderData as any)?.shopSettings?.offset || "+00:00";
   const currency = (loaderData as any)?.shopSettings?.currency || "USD";
@@ -766,6 +810,19 @@ export default function AdditionalPage() {
       shopify.toast.show((actionData as any).error, { isError: true });
     }
   }, [actionData]);
+
+  // ── Action Fetcher result (Pause/Resume) ──
+  useEffect(() => {
+    if (actionFetcher.data && actionFetcher.state === "idle") {
+      const data = actionFetcher.data as any;
+      if (data.success) {
+        shopify.toast.show("Campaign status updated successfully");
+        revalidator.revalidate();
+      } else if (data.error) {
+        shopify.toast.show(data.error, { isError: true });
+      }
+    }
+  }, [actionFetcher.data, actionFetcher.state]);
 
   // ── Browse (products / collections) ──
   const handleBrowse = async () => {
@@ -964,8 +1021,30 @@ export default function AdditionalPage() {
       <s-button slot="primary-action" variant="primary" onClick={handleSaveCampaign} disabled={!name.trim()}>
         Save Campaign
       </s-button>
+      {campaignId && campaign && (
+        <>
+          {(campaign.status === "ACTIVE" || campaign.status === "SCHEDULED") && (
+            <s-button
+              slot="secondary-actions"
+              icon="pause-circle"
+              onClick={() => actionFetcher.submit({ intent: "PAUSE" }, { method: "POST", action: `/app/campaigns/${campaignId}` })}
+              loading={actionFetcher.state !== "idle" ? true : undefined}
+            >
+              Pause Campaign
+            </s-button>
+          )}
+        </>
+      )}
 
       <s-section heading="Campaign Details">
+        {campaignId && campaign && (
+          <s-box paddingBlockEnd="base">
+            <s-stack direction="inline" gap="small" alignItems="center">
+              <s-text tone="neutral">Current Status:</s-text>
+              <StatusBadge status={campaign.status} />
+            </s-stack>
+          </s-box>
+        )}
 
         {/* ── Campaign Name ── */}
         <s-card>
@@ -1306,7 +1385,7 @@ export default function AdditionalPage() {
                           value={phase.startTime}
                           onChange={(e: any) => handleUpdatePhaseField(index, "startTime", e.currentTarget.value)}
                         >
-                          {TIME_OPTIONS.map((opt) => (
+                          {getSelectOptionsWithDefault(phase.startTime).map((opt) => (
                             <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
                           ))}
                         </s-select>
@@ -1328,7 +1407,7 @@ export default function AdditionalPage() {
                           value={phase.endTime}
                           onChange={(e: any) => handleUpdatePhaseField(index, "endTime", e.currentTarget.value)}
                         >
-                          {TIME_OPTIONS.map((opt) => (
+                          {getSelectOptionsWithDefault(phase.endTime).map((opt) => (
                             <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
                           ))}
                         </s-select>
