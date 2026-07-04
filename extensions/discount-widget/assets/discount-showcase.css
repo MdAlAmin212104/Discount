@@ -377,6 +377,11 @@
 
 .discount-showcase-container .circle-drop-cell.active-drop {
   background: var(--accent-color);
+  color: #ffffff;
+}
+
+.discount-showcase-container .circle-drop-cell.active-drop * {
+  color: #ffffff !important;
 }
 
 .discount-showcase-container .circle-drop-cell.locked {
@@ -1268,4 +1273,38 @@
   width: 100%;
   height: 44px;
   border-radius: 6px;
+}
+
+/* ── ADDITIONAL COMPONENT STYLES ── */
+.circle-prod-view-btn {
+  background: transparent;
+  border: none;
+  color: var(--accent-color);
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  text-decoration: underline;
+  display: inline-block;
+  margin-top: 4px;
+}
+.circle-prod-view-btn:hover {
+  color: var(--accent-color);
+  opacity: 0.85;
+}
+.circle-bottom-info {
+  text-align: center;
+  margin-top: 24px;
+  padding: 16px;
+  border-top: 0.5px solid var(--border-color);
+  font-size: 10px;
+  color: var(--muted-color);
+  line-height: 1.5;
+  background: var(--card-color);
+  border-radius: 8px;
 }

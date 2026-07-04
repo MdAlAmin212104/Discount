@@ -219,6 +219,12 @@
       const stages = activeCampaignDetails.stages || [];
       const now = new Date();
 
+      // Clear swatch container immediately during product transition to prevent old swatches from lingering
+      const optionsContainer = container.querySelector("[data-options-container]");
+      if (optionsContainer) {
+        optionsContainer.innerHTML = "";
+      }
+
       // Toggle active CSS class in slider list
       container.querySelectorAll(".circle-prod").forEach(el => {
         if (el.getAttribute("data-product-id") === prodId) {
@@ -257,6 +263,23 @@
       const wasEl = container.querySelector("[data-preview-compare-price]");
       if (saleEl) saleEl.innerText = formatMoney(salePrice);
       if (wasEl) wasEl.innerText = formatMoney(comparePrice);
+
+      // Render the bottom status banner detailing closed phases / public price
+      const allPhasesEnded = stages.every(s => new Date(s.endDate) < now);
+      const bottomInfoEl = container.querySelector("[data-bottom-info]");
+      if (bottomInfoEl) {
+        if (allPhasesEnded) {
+          bottomInfoEl.style.display = "block";
+          bottomInfoEl.innerHTML = `All promotional drops have closed. The public release price of <strong>${formatMoney(prod.originalPrice)}</strong> is now active.`;
+        } else if (activePhaseNum > 1) {
+          bottomInfoEl.style.display = "block";
+          const endedStages = stages.filter(s => s.stageNumber < activePhaseNum);
+          const endedLabels = endedStages.map(s => s.label).join(", ");
+          bottomInfoEl.innerHTML = `${endedLabels} closed. The current drop price is now active.`;
+        } else {
+          bottomInfoEl.style.display = "none";
+        }
+      }
 
       // Fetch options / variant details from Shopify
       fetchStorefrontProductDetails(prod.handle);
@@ -474,6 +497,7 @@
       if (!modal || !selectedProduct) return;
 
       modal.style.display = "flex";
+      document.body.style.overflow = "hidden";
 
       // Reset fields
       const details = productDetailsCache[selectedProduct.handle];
@@ -666,6 +690,11 @@
         const cartMode = (activeCampaignDetails && activeCampaignDetails.settings && activeCampaignDetails.settings.cartMode) || "stay";
 
         if (cartMode === "stay") {
+          // Auto-apply discount code cookie in the background for AJAX additions
+          if (activeCampaignDetails && activeCampaignDetails.discountCode) {
+            fetch(`/discount/${encodeURIComponent(activeCampaignDetails.discountCode)}`).catch(() => {});
+          }
+
           buttons.forEach(btn => {
             btn.innerText = "Added ✓";
             btn.style.backgroundColor = "var(--forest, #1a3a2a)";
@@ -758,7 +787,10 @@
 
       if (closeProdBtn) {
         closeProdBtn.addEventListener("click", () => {
-          if (prodModal) prodModal.style.display = "none";
+          if (prodModal) {
+            prodModal.style.display = "none";
+            document.body.style.overflow = "";
+          }
         });
       }
 
@@ -766,6 +798,7 @@
       window.addEventListener("click", (e) => {
         if (e.target === prodModal) {
           prodModal.style.display = "none";
+          document.body.style.overflow = "";
         }
       });
     }

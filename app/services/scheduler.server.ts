@@ -27,7 +27,7 @@ export async function requeueProcessingJobs() {
 }
 
 // Process a single scheduled stage job
-async function processStageJob(job: any) {
+export async function processStageJob(job: any) {
   const { id, shopId, stageId } = job;
   console.log(`Processing SchedulerJob ${id} for stage ${stageId}`);
 

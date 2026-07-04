@@ -210,7 +210,7 @@ export default function CampaignsList() {
           variant="primary"
           onClick={() => navigate("/app/campaigns/new")}
         >
-          New campaign
+          New Campaign
         </s-button>
       )}
 
@@ -294,6 +294,27 @@ export default function CampaignsList() {
                           <s-link onClick={() => navigate(`/app/campaigns/${campaign.id}`)}>
                             {campaign.name}
                           </s-link>
+                          <div style={{ marginTop: "4px", fontSize: "11px", display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ color: "#6d7175" }}>ID: {campaign.id}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(campaign.id);
+                                alert("Campaign ID copied: " + campaign.id);
+                              }}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                color: "#008060",
+                                cursor: "pointer",
+                                padding: 0,
+                                textDecoration: "underline",
+                                fontSize: "11px",
+                              }}
+                            >
+                              Copy
+                            </button>
+                          </div>
                         </s-table-cell>
                         <s-table-cell>
                           <StatusBadge status={campaign.status} />

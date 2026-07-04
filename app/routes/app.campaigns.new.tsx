@@ -5,6 +5,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
 import { CampaignStatus } from "@prisma/client";
+import { processStageJob } from "../services/scheduler.server";
 
 interface Phase {
   phaseTitle: string;
@@ -302,8 +303,47 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { campaign: null, resolvedProducts: [], loadedCollections: [], resolvedCollectionsMap: {}, shopSettings };
 };
 
+// ── Helper: resolve products for a comma-separated list of tags ──
+async function resolveTagProductIds(admin: any, tags: string[]): Promise<string[]> {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const tag of tags) {
+    if (!tag) continue;
+    const res = await admin.graphql(`#graphql
+      query getProductsByTag($query: String!) {
+        products(first: 250, query: $query) { nodes { id } }
+      }`, { variables: { query: `tag:${tag}` } });
+    const json = await res.json();
+    const nodes = json.data?.products?.nodes || [];
+    for (const n of nodes) {
+      if (!seen.has(n.id)) { seen.add(n.id); ids.push(n.id); }
+    }
+  }
+  return ids;
+}
+
+// ── Helper: build the `items` input for customerGets based on target type ──
+async function buildDiscountItemsInput(
+  admin: any,
+  targetType: string,
+  targetValue: string
+): Promise<any> {
+  const ids = (targetValue || "").split(",").filter(Boolean);
+
+  if (targetType === "PRODUCT") {
+    return { products: { productsToAdd: ids } };
+  }
+  if (targetType === "COLLECTION") {
+    return { collections: { add: ids } };
+  }
+  // TAG: Shopify discount targeting doesn't support tags directly,
+  // so resolve matching product IDs and target those instead.
+  const resolvedIds = await resolveTagProductIds(admin, ids);
+  return { products: { productsToAdd: resolvedIds } };
+}
+
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = await getOrCreateShop(session.shop, session.accessToken || "");
   const formData = await request.formData();
 
@@ -330,6 +370,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }];
   }
 
+  if (!targetType || !targetValue) {
+    return { error: "Please select at least one product, collection, or tag" };
+  }
+
   const startDates = stagesData.map((s) => new Date(s.startDate));
   const endDates = stagesData.map((s) => new Date(s.endDate));
   const campaignStartDate = new Date(Math.min(...startDates.map((d) => d.getTime())));
@@ -338,6 +382,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let status: CampaignStatus = CampaignStatus.SCHEDULED;
   if (campaignEndDate <= now) status = CampaignStatus.COMPLETED;
   else if (campaignStartDate <= now && campaignEndDate > now) status = CampaignStatus.ACTIVE;
+
+  // ── Resolve the discount `items` target ONCE — same target applies to every phase ──
+  let itemsInput: any;
+  try {
+    itemsInput = await buildDiscountItemsInput(admin, targetType, targetValue);
+  } catch (resolveErr) {
+    console.error("Error resolving discount target items:", resolveErr);
+    return { error: "Failed to resolve selected products/collections/tags" };
+  }
+
+  // ── Grab existing stages' Shopify discount IDs BEFORE wiping them out (edit mode only) ──
+  let existingStagesWithDiscount: { stageNumber: number; shopifyDiscountId: string | null }[] = [];
+  if (id) {
+    existingStagesWithDiscount = await prisma.campaignStage.findMany({
+      where: { campaignId: id },
+      select: { stageNumber: true, shopifyDiscountId: true },
+      orderBy: { stageNumber: "asc" },
+    });
+  }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -360,11 +423,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await tx.campaignProduct.create({
         data: { campaignId: campaign.id, targetType: (targetType || "PRODUCT") as any, targetValue: targetValue || "" },
       });
+
+      const createdStages = [];
       for (let i = 0; i < stagesData.length; i++) {
         const s = stagesData[i];
+        const code = `${name.replace(/\s+/g, "_").toUpperCase()}_PHASE_${i + 1}_${campaign.id.slice(-4)}`;
         const labelObj = {
           label: s.badgeLabel, isCirclePhase: true, phaseTitle: s.phaseTitle,
-          discountCode: `${name.replace(/\s+/g, "_").toUpperCase()}_PHASE_${i + 1}`,
+          discountCode: code,
           shippingNoteLeft: s.shippingNoteLeft || "", shippingNoteRight: s.shippingNoteRight || "",
           visible: s.visible !== false, autoApply: s.autoApply === true,
         };
@@ -375,14 +441,133 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             startDate: new Date(s.startDate), endDate: new Date(s.endDate), status: "PENDING",
           },
         });
+        let job = null;
         if (new Date(s.endDate) > now) {
           const scheduledAt = new Date(s.startDate) <= now ? now : new Date(s.startDate);
-          await tx.schedulerJob.create({ data: { shopId: shop.id, stageId: stage.id, scheduledAt, status: "PENDING" } });
+          job = await tx.schedulerJob.create({ data: { shopId: shop.id, stageId: stage.id, scheduledAt, status: "PENDING" } });
         }
+
+        const matchedOld = existingStagesWithDiscount.find(
+          (es) => es.stageNumber === i + 1 && !!es.shopifyDiscountId
+        );
+
+        createdStages.push({ stage, code, job, oldShopifyDiscountId: matchedOld?.shopifyDiscountId || null });
       }
-      return campaign;
+      return { campaign, createdStages };
     });
-    return { success: true, campaign: result };
+
+    const { campaign, createdStages } = result;
+
+    // ── Phases removed on edit → delete their Shopify discounts ──
+    const removedOldDiscounts = existingStagesWithDiscount.filter(
+      (es) => es.stageNumber > stagesData.length && !!es.shopifyDiscountId
+    );
+    for (const old of removedOldDiscounts) {
+      try {
+        await admin.graphql(`#graphql
+          mutation discountCodeDelete($id: ID!) {
+            discountCodeDelete(id: $id) {
+              deletedCodeDiscountId
+              userErrors { field message }
+            }
+          }`, { variables: { id: old.shopifyDiscountId } });
+      } catch (delErr) {
+        console.error("Error deleting removed phase discount:", delErr);
+      }
+    }
+
+    // ── Create NEW discounts, or UPDATE existing ones ──
+    for (const item of createdStages) {
+      try {
+        const s = item.stage;
+        const discountVal = s.discountValue;
+        const isPercentage = campaign.discountType === "PERCENTAGE";
+
+        const valueInput = isPercentage
+          ? { percentage: discountVal / 100 }
+          : { discountAmount: { amount: discountVal.toFixed(2), appliesOnEachItem: false } };
+
+        const startsAt = typeof s.startDate === "string" ? new Date(s.startDate).toISOString() : s.startDate.toISOString();
+        const endsAt = typeof s.endDate === "string" ? new Date(s.endDate).toISOString() : s.endDate.toISOString();
+
+        if (item.oldShopifyDiscountId) {
+          const updateRes = await admin.graphql(`#graphql
+            mutation discountCodeBasicUpdate($id: ID!, $basicCodeDiscount: DiscountCodeBasicInput!) {
+              discountCodeBasicUpdate(id: $id, basicCodeDiscount: $basicCodeDiscount) {
+                codeDiscountNode { id }
+                userErrors { field message }
+              }
+            }`, {
+            variables: {
+              id: item.oldShopifyDiscountId,
+              basicCodeDiscount: {
+                title: `${campaign.name} - Phase ${s.stageNumber}`,
+                startsAt,
+                endsAt,
+                customerGets: { value: valueInput, items: itemsInput },
+              },
+            },
+          });
+          const updateJson = await updateRes.json();
+          const userErrors = updateJson.data?.discountCodeBasicUpdate?.userErrors;
+          if (userErrors?.length) {
+            console.error("Discount update errors:", item.code, JSON.stringify(userErrors));
+          } else {
+            await prisma.campaignStage.update({
+              where: { id: s.id },
+              data: { shopifyDiscountId: item.oldShopifyDiscountId },
+            });
+          }
+        } else {
+          const createRes = await admin.graphql(`#graphql
+            mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
+              discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+                codeDiscountNode { id }
+                userErrors { field message }
+              }
+            }`, {
+            variables: {
+              basicCodeDiscount: {
+                title: `${campaign.name} - Phase ${s.stageNumber}`,
+                code: item.code,
+                startsAt,
+                endsAt,
+                customerSelection: { all: true },
+                customerGets: { value: valueInput, items: itemsInput },
+                appliesOncePerCustomer: false,
+              },
+            },
+          });
+          const createJson = await createRes.json();
+          const newDiscountId = createJson.data?.discountCodeBasicCreate?.codeDiscountNode?.id;
+          const userErrors = createJson.data?.discountCodeBasicCreate?.userErrors;
+
+          if (userErrors?.length) {
+            console.error("Discount create errors:", item.code, JSON.stringify(userErrors));
+          } else if (newDiscountId) {
+            await prisma.campaignStage.update({
+              where: { id: s.id },
+              data: { shopifyDiscountId: newDiscountId },
+            });
+          }
+        }
+      } catch (discErr) {
+        console.error("Error syncing Shopify discount code:", discErr);
+      }
+    }
+
+    // ── Trigger immediate price updates for any stage that's active right now ──
+    for (const item of createdStages) {
+      const s = item.stage;
+      const job = item.job;
+      if (job && new Date(s.startDate) <= now && new Date(s.endDate) >= now) {
+        processStageJob(job).catch((err) => {
+          console.error("Error triggering immediate price update for stage job:", err);
+        });
+      }
+    }
+
+    return { success: true, campaign };
   } catch (err: any) {
     return { error: err.message || "Failed to save campaign" };
   }
@@ -536,7 +721,7 @@ export default function AdditionalPage() {
       };
       setPhases(c.stages.map((stage: any) => {
         let labelObj: any = {};
-        try { labelObj = JSON.parse(stage.label || "{}"); } catch {}
+        try { labelObj = JSON.parse(stage.label || "{}"); } catch { }
         return {
           phaseTitle: labelObj.phaseTitle || `Stage ${stage.stageNumber}`,
           badgeLabel: labelObj.label || stage.label || "",
@@ -782,419 +967,419 @@ export default function AdditionalPage() {
 
       <s-section heading="Campaign Details">
 
-          {/* ── Campaign Name ── */}
-          <s-card>
-            <s-text-field
-              label="Campaign Name"
-              placeholder="Enter campaign name"
-              value={name}
-              onChange={(e: any) => setName(e.currentTarget.value)}
-            />
-          </s-card>
-          <s-divider />
+        {/* ── Campaign Name ── */}
+        <s-card>
+          <s-text-field
+            label="Campaign Name"
+            placeholder="Enter campaign name"
+            value={name}
+            onChange={(e: any) => setName(e.currentTarget.value)}
+          />
+        </s-card>
+        <s-divider />
 
-          {/* ── Discount Type ── */}
-          <s-box paddingBlock="base">
-            <s-choice-list ref={discountChoiceRef} label="Discount Type" name="discountType">
-              <s-choice value="percentage" selected={discountType === "percentage" ? true : undefined}>
-                Percentage (%)
-              </s-choice>
-              <s-choice value="fixed" selected={discountType === "fixed" ? true : undefined}>
-                Fixed Amount ({currency})
-              </s-choice>
-            </s-choice-list>
-          </s-box>
-          <s-divider />
+        {/* ── Discount Type ── */}
+        <s-box paddingBlock="base">
+          <s-choice-list ref={discountChoiceRef} label="Discount Type" name="discountType">
+            <s-choice value="percentage" selected={discountType === "percentage" ? true : undefined}>
+              Percentage (%)
+            </s-choice>
+            <s-choice value="fixed" selected={discountType === "fixed" ? true : undefined}>
+              Fixed Amount ({currency})
+            </s-choice>
+          </s-choice-list>
+        </s-box>
+        <s-divider />
 
-          {/* ── Product Option ── */}
-          <s-box paddingBlock="base">
-            <s-choice-list ref={productChoiceRef} label="Apply campaign to" name="productOption">
-              <s-choice value="products" selected={productOption === "products" ? true : undefined}>
-                Specific Products
-              </s-choice>
-              <s-choice value="collections" selected={productOption === "collections" ? true : undefined}>
-                Collections
-              </s-choice>
-              <s-choice value="tags" selected={productOption === "tags" ? true : undefined}>
-                Product Tags
-              </s-choice>
-            </s-choice-list>
-          </s-box>
-          <s-divider />
+        {/* ── Product Option ── */}
+        <s-box paddingBlock="base">
+          <s-choice-list ref={productChoiceRef} label="Apply campaign to" name="productOption">
+            <s-choice value="products" selected={productOption === "products" ? true : undefined}>
+              Specific Products
+            </s-choice>
+            <s-choice value="collections" selected={productOption === "collections" ? true : undefined}>
+              Collections
+            </s-choice>
+            <s-choice value="tags" selected={productOption === "tags" ? true : undefined}>
+              Product Tags
+            </s-choice>
+          </s-choice-list>
+        </s-box>
+        <s-divider />
 
-          {/* ── Products section ── */}
-          <s-box paddingBlock="base">
+        {/* ── Products section ── */}
+        <s-box paddingBlock="base">
 
-            {/* Collections: show selected badges */}
-            {productOption === "collections" && selectedCollections.length > 0 && (
-              <s-box paddingBlockEnd="small">
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--p-space-200)" }}>
-                  {selectedCollections.map((col) => (
-                    <s-stack key={col.id} direction="inline" gap="small" alignItems="center">
-                      <s-badge tone="info">{col.title}</s-badge>
-                      <s-button
-                        variant="tertiary"
-                        icon="delete"
-                        accessibilityLabel={`Remove ${col.title}`}
-                        tone="critical"
-                        onClick={() => handleRemoveCollection(col.id)}
-                      />
-                    </s-stack>
-                  ))}
-                </div>
-              </s-box>
-            )}
+          {/* Collections: show selected badges */}
+          {productOption === "collections" && selectedCollections.length > 0 && (
+            <s-box paddingBlockEnd="small">
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--p-space-200)" }}>
+                {selectedCollections.map((col) => (
+                  <s-stack key={col.id} direction="inline" gap="small" alignItems="center">
+                    <s-badge tone="info">{col.title}</s-badge>
+                    <s-button
+                      variant="tertiary"
+                      icon="delete"
+                      accessibilityLabel={`Remove ${col.title}`}
+                      tone="critical"
+                      onClick={() => handleRemoveCollection(col.id)}
+                    />
+                  </s-stack>
+                ))}
+              </div>
+            </s-box>
+          )}
 
-            {/* Tags: show selected badges */}
-            {productOption === "tags" && selectedTags.length > 0 && (
-              <s-box paddingBlockEnd="small">
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--p-space-200)" }}>
-                  {selectedTags.map((tag) => (
-                    <s-stack key={tag} direction="inline" gap="small" alignItems="center">
-                      <s-badge tone="info">{tag}</s-badge>
-                      <s-button
-                        variant="tertiary"
-                        icon="delete"
-                        accessibilityLabel={`Remove tag ${tag}`}
-                        tone="critical"
-                        onClick={() => handleRemoveTag(tag)}
-                      />
-                    </s-stack>
-                  ))}
-                </div>
-              </s-box>
-            )}
+          {/* Tags: show selected badges */}
+          {productOption === "tags" && selectedTags.length > 0 && (
+            <s-box paddingBlockEnd="small">
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--p-space-200)" }}>
+                {selectedTags.map((tag) => (
+                  <s-stack key={tag} direction="inline" gap="small" alignItems="center">
+                    <s-badge tone="info">{tag}</s-badge>
+                    <s-button
+                      variant="tertiary"
+                      icon="delete"
+                      accessibilityLabel={`Remove tag ${tag}`}
+                      tone="critical"
+                      onClick={() => handleRemoveTag(tag)}
+                    />
+                  </s-stack>
+                ))}
+              </div>
+            </s-box>
+          )}
 
-            {/* Tags: input field for adding tags */}
-            {productOption === "tags" && (
-              <s-box paddingBlockEnd="base">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleAddTag(e);
-                  }}
-                >
-                  <s-grid gridTemplateColumns="1fr auto" gap="small" alignItems="end">
-                    <s-stack gap="small">
-                      <s-text-field
-                        label="Add Product Tag"
-                        placeholder="e.g. summer-sale, new-arrival"
-                        value={tagInput}
-                        onChange={(e: any) => setTagInput(e.currentTarget.value)}
-                      />
-                      <s-text color="subdued">
-                        Products matching this tag will be included in the campaign
-                      </s-text>
-                    </s-stack>
-                    <s-button onClick={handleAddTag} loading={tagLoading ? true : undefined}>
-                      Add Tag
-                    </s-button>
-                  </s-grid>
-                </form>
-              </s-box>
-            )}
-
-            {/* Product/Collection table */}
-            <s-table>
-              <s-grid slot="filters" gap="small-200" gridTemplateColumns="1fr auto">
-                <s-text-field
-                  label="Search"
-                  labelAccessibilityVisibility="exclusive"
-                  icon="search"
-                  placeholder={
-                    productOption === "products" ? "Search selected products…"
-                    : productOption === "collections" ? "Search products in selected collections…"
-                    : "Search products by tag…"
-                  }
-                  value={searchQuery}
-                  onChange={(e: any) => { setSearchQuery(e.currentTarget.value); setCurrentPage(1); }}
-                />
-                {/* Browse button for products & collections only */}
-                {productOption !== "tags" && (
-                  <s-button onClick={handleBrowse}>
-                    Browse {productOption === "collections" ? "Collections" : "Products"}
-                  </s-button>
-                )}
-              </s-grid>
-
-              <s-table-header-row>
-                <s-table-header listSlot="primary">Product</s-table-header>
-                <s-table-header listSlot="secondary" format="numeric">Action</s-table-header>
-              </s-table-header-row>
-
-              <s-table-body>
-                {paginatedProducts.length === 0 ? (
-                  <s-table-row>
-                    <s-table-cell>
-                      <s-text tone="neutral">
-                        {productOption === "products"
-                          ? "No products selected. Click 'Browse Products' to add products."
-                          : productOption === "collections" && selectedCollections.length === 0
-                          ? "No collections selected. Click 'Browse Collections' to add."
-                          : productOption === "tags" && selectedTags.length === 0
-                          ? "Add a product tag above to see matching products here."
-                          : searchQuery
-                          ? `No products found matching "${searchQuery}".`
-                          : tagLoading
-                          ? "Loading products…"
-                          : "No products found for the selected filters."}
-                      </s-text>
-                    </s-table-cell>
-                    <s-table-cell>—</s-table-cell>
-                  </s-table-row>
-                ) : (
-                  paginatedProducts.map((product) => (
-                    <s-table-row key={product.id}>
-                      <s-table-cell>
-                        <s-stack direction="inline" gap="small" alignItems="center">
-                          <s-clickable
-                            accessibilityLabel={product.title}
-                            border="base" borderRadius="base" overflow="hidden"
-                            inlineSize="40px" blockSize="40px"
-                          >
-                            <s-image
-                              objectFit="cover"
-                              src={product.featuredImage?.url || product.image || "https://picsum.photos/id/29/80/80"}
-                            />
-                          </s-clickable>
-                          <s-stack direction="block" gap="small">
-                            <s-text>{product.title}</s-text>
-                            {productOption === "tags" && product.tags?.length > 0 && (
-                              <s-text color="subdued">
-                                Tags: {product.tags.filter((t: string) =>
-                                  selectedTags.some((st) => st.toLowerCase() === t.toLowerCase())
-                                ).join(", ")}
-                              </s-text>
-                            )}
-                          </s-stack>
-                        </s-stack>
-                      </s-table-cell>
-                      <s-table-cell>
-                        {/* Only allow direct removal for individually selected products */}
-                        {productOption === "products" ? (
-                          <s-button
-                            icon="delete"
-                            accessibilityLabel={`Remove ${product.title}`}
-                            tone="critical"
-                            onClick={() => handleRemoveProduct(product.id)}
-                          />
-                        ) : (
-                          <s-text color="subdued">—</s-text>
-                        )}
-                      </s-table-cell>
-                    </s-table-row>
-                  ))
-                )}
-              </s-table-body>
-            </s-table>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <s-box paddingBlockStart="base">
-                <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
-                  <s-button
-                    disabled={displayPage === 1 ? true : undefined}
-                    onClick={(e: any) => { e.preventDefault(); if (displayPage > 1) setCurrentPage(displayPage - 1); }}
-                  >Previous</s-button>
-                  <s-text>Page {displayPage} of {totalPages}</s-text>
-                  <s-button
-                    disabled={displayPage === totalPages ? true : undefined}
-                    onClick={(e: any) => { e.preventDefault(); if (displayPage < totalPages) setCurrentPage(displayPage + 1); }}
-                  >Next</s-button>
-                </s-stack>
-              </s-box>
-            )}
-          </s-box>
-          <s-divider />
-
-          {/* ── Phases ── */}
-          <s-box paddingBlock="base">
-            <s-stack direction="block" gap="small-200">
-              <s-heading>Campaign Phases</s-heading>
-              <s-paragraph>
-                Configure sequential discount phases. Times are in store timezone: (GMT{offset}) {storeTimezone}
-              </s-paragraph>
-            </s-stack>
-          </s-box>
-
-          <s-stack direction="block" gap="base">
-            {phases.map((phase, index) =>
-              phase.isSaved ? (
-                /* ── Saved phase summary card ── */
-                <s-box key={index} padding="base" border="base" borderRadius="base">
-                  <s-stack direction="block" gap="small">
-                    <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-                      <s-stack direction="inline" gap="small" alignItems="center">
-                        <s-badge tone="success">Phase {index + 1}</s-badge>
-                        <s-text font-weight="semibold">{phase.phaseTitle}</s-text>
-                      </s-stack>
-                      <s-stack direction="inline" gap="small">
-                        <s-button onClick={(e: any) => handleEditPhase(index, e)}>Edit</s-button>
-                        <s-button tone="critical" onClick={(e: any) => handleRemovePhase(index, e)}>Remove</s-button>
-                      </s-stack>
-                    </s-stack>
-                    <s-divider />
-                    <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="base">
-                      <s-stack direction="block" gap="small">
-                        <s-text color="subdued">Discount</s-text>
-                        <s-text>
-                          <strong>{phase.discountValue}{discountType === "percentage" ? "%" : ` ${currency}`} OFF</strong>
-                        </s-text>
-                      </s-stack>
-                      <s-stack direction="block" gap="small">
-                        <s-text color="subdued">Start</s-text>
-                        <s-text>{phase.startDate} {phase.startTime}</s-text>
-                      </s-stack>
-                      <s-stack direction="block" gap="small">
-                        <s-text color="subdued">End</s-text>
-                        <s-text>{phase.endDate} {phase.endTime}</s-text>
-                      </s-stack>
-                    </s-grid>
+          {/* Tags: input field for adding tags */}
+          {productOption === "tags" && (
+            <s-box paddingBlockEnd="base">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAddTag(e);
+                }}
+              >
+                <s-grid gridTemplateColumns="1fr auto" gap="small" alignItems="end">
+                  <s-stack gap="small">
+                    <s-text-field
+                      label="Add Product Tag"
+                      placeholder="e.g. summer-sale, new-arrival"
+                      value={tagInput}
+                      onChange={(e: any) => setTagInput(e.currentTarget.value)}
+                    />
                     <s-text color="subdued">
-                      Badge: "{phase.badgeLabel}" · Widget: {phase.visible ? "Visible" : "Hidden"} · Auto-apply: {phase.autoApply ? "Yes" : "No"}
+                      Products matching this tag will be included in the campaign
                     </s-text>
                   </s-stack>
-                </s-box>
+                  <s-button onClick={handleAddTag} loading={tagLoading ? true : undefined}>
+                    Add Tag
+                  </s-button>
+                </s-grid>
+              </form>
+            </s-box>
+          )}
+
+          {/* Product/Collection table */}
+          <s-table>
+            <s-grid slot="filters" gap="small-200" gridTemplateColumns="1fr auto">
+              <s-text-field
+                label="Search"
+                labelAccessibilityVisibility="exclusive"
+                icon="search"
+                placeholder={
+                  productOption === "products" ? "Search selected products…"
+                    : productOption === "collections" ? "Search products in selected collections…"
+                      : "Search products by tag…"
+                }
+                value={searchQuery}
+                onChange={(e: any) => { setSearchQuery(e.currentTarget.value); setCurrentPage(1); }}
+              />
+              {/* Browse button for products & collections only */}
+              {productOption !== "tags" && (
+                <s-button onClick={handleBrowse}>
+                  Browse {productOption === "collections" ? "Collections" : "Products"}
+                </s-button>
+              )}
+            </s-grid>
+
+            <s-table-header-row>
+              <s-table-header listSlot="primary">Product</s-table-header>
+              <s-table-header listSlot="secondary" format="numeric">Action</s-table-header>
+            </s-table-header-row>
+
+            <s-table-body>
+              {paginatedProducts.length === 0 ? (
+                <s-table-row>
+                  <s-table-cell>
+                    <s-text tone="neutral">
+                      {productOption === "products"
+                        ? "No products selected. Click 'Browse Products' to add products."
+                        : productOption === "collections" && selectedCollections.length === 0
+                          ? "No collections selected. Click 'Browse Collections' to add."
+                          : productOption === "tags" && selectedTags.length === 0
+                            ? "Add a product tag above to see matching products here."
+                            : searchQuery
+                              ? `No products found matching "${searchQuery}".`
+                              : tagLoading
+                                ? "Loading products…"
+                                : "No products found for the selected filters."}
+                    </s-text>
+                  </s-table-cell>
+                  <s-table-cell>—</s-table-cell>
+                </s-table-row>
               ) : (
-                /* ── Active phase edit card ── */
-                <s-box key={index} padding="base" border="base" borderRadius="base">
-                  <s-stack direction="block" gap="base">
-                    <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-                      <s-heading>Configure Phase {index + 1}</s-heading>
-                      {phases.length > 1 && (
-                        <s-button tone="critical" onClick={(e: any) => handleRemovePhase(index, e)}>
-                          Remove Phase
-                        </s-button>
+                paginatedProducts.map((product) => (
+                  <s-table-row key={product.id}>
+                    <s-table-cell>
+                      <s-stack direction="inline" gap="small" alignItems="center">
+                        <s-clickable
+                          accessibilityLabel={product.title}
+                          border="base" borderRadius="base" overflow="hidden"
+                          inlineSize="40px" blockSize="40px"
+                        >
+                          <s-image
+                            objectFit="cover"
+                            src={product.featuredImage?.url || product.image || "https://picsum.photos/id/29/80/80"}
+                          />
+                        </s-clickable>
+                        <s-stack direction="block" gap="small">
+                          <s-text>{product.title}</s-text>
+                          {productOption === "tags" && product.tags?.length > 0 && (
+                            <s-text color="subdued">
+                              Tags: {product.tags.filter((t: string) =>
+                                selectedTags.some((st) => st.toLowerCase() === t.toLowerCase())
+                              ).join(", ")}
+                            </s-text>
+                          )}
+                        </s-stack>
+                      </s-stack>
+                    </s-table-cell>
+                    <s-table-cell>
+                      {/* Only allow direct removal for individually selected products */}
+                      {productOption === "products" ? (
+                        <s-button
+                          icon="delete"
+                          accessibilityLabel={`Remove ${product.title}`}
+                          tone="critical"
+                          onClick={() => handleRemoveProduct(product.id)}
+                        />
+                      ) : (
+                        <s-text color="subdued">—</s-text>
                       )}
+                    </s-table-cell>
+                  </s-table-row>
+                ))
+              )}
+            </s-table-body>
+          </s-table>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <s-box paddingBlockStart="base">
+              <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
+                <s-button
+                  disabled={displayPage === 1 ? true : undefined}
+                  onClick={(e: any) => { e.preventDefault(); if (displayPage > 1) setCurrentPage(displayPage - 1); }}
+                >Previous</s-button>
+                <s-text>Page {displayPage} of {totalPages}</s-text>
+                <s-button
+                  disabled={displayPage === totalPages ? true : undefined}
+                  onClick={(e: any) => { e.preventDefault(); if (displayPage < totalPages) setCurrentPage(displayPage + 1); }}
+                >Next</s-button>
+              </s-stack>
+            </s-box>
+          )}
+        </s-box>
+        <s-divider />
+
+        {/* ── Phases ── */}
+        <s-box paddingBlock="base">
+          <s-stack direction="block" gap="small-200">
+            <s-heading>Campaign Phases</s-heading>
+            <s-paragraph>
+              Configure sequential discount phases. Times are in store timezone: (GMT{offset}) {storeTimezone}
+            </s-paragraph>
+          </s-stack>
+        </s-box>
+
+        <s-stack direction="block" gap="base">
+          {phases.map((phase, index) =>
+            phase.isSaved ? (
+              /* ── Saved phase summary card ── */
+              <s-box key={index} padding="base" border="base" borderRadius="base">
+                <s-stack direction="block" gap="small">
+                  <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                    <s-stack direction="inline" gap="small" alignItems="center">
+                      <s-badge tone="success">Phase {index + 1}</s-badge>
+                      <s-text font-weight="semibold">{phase.phaseTitle}</s-text>
                     </s-stack>
+                    <s-stack direction="inline" gap="small">
+                      <s-button onClick={(e: any) => handleEditPhase(index, e)}>Edit</s-button>
+                      <s-button tone="critical" onClick={(e: any) => handleRemovePhase(index, e)}>Remove</s-button>
+                    </s-stack>
+                  </s-stack>
+                  <s-divider />
+                  <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="base">
+                    <s-stack direction="block" gap="small">
+                      <s-text color="subdued">Discount</s-text>
+                      <s-text>
+                        <strong>{phase.discountValue}{discountType === "percentage" ? "%" : ` ${currency}`} OFF</strong>
+                      </s-text>
+                    </s-stack>
+                    <s-stack direction="block" gap="small">
+                      <s-text color="subdued">Start</s-text>
+                      <s-text>{phase.startDate} {phase.startTime}</s-text>
+                    </s-stack>
+                    <s-stack direction="block" gap="small">
+                      <s-text color="subdued">End</s-text>
+                      <s-text>{phase.endDate} {phase.endTime}</s-text>
+                    </s-stack>
+                  </s-grid>
+                  <s-text color="subdued">
+                    Badge: "{phase.badgeLabel}" · Widget: {phase.visible ? "Visible" : "Hidden"} · Auto-apply: {phase.autoApply ? "Yes" : "No"}
+                  </s-text>
+                </s-stack>
+              </s-box>
+            ) : (
+              /* ── Active phase edit card ── */
+              <s-box key={index} padding="base" border="base" borderRadius="base">
+                <s-stack direction="block" gap="base">
+                  <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                    <s-heading>Configure Phase {index + 1}</s-heading>
+                    {phases.length > 1 && (
+                      <s-button tone="critical" onClick={(e: any) => handleRemovePhase(index, e)}>
+                        Remove Phase
+                      </s-button>
+                    )}
+                  </s-stack>
 
-                    <s-text-field
-                      label="Phase Title"
-                      placeholder="e.g. Inner Circle Access"
-                      value={phase.phaseTitle}
-                      onChange={(e: any) => handleUpdatePhaseField(index, "phaseTitle", e.currentTarget.value)}
-                    />
+                  <s-text-field
+                    label="Phase Title"
+                    placeholder="e.g. Inner Circle Access"
+                    value={phase.phaseTitle}
+                    onChange={(e: any) => handleUpdatePhaseField(index, "phaseTitle", e.currentTarget.value)}
+                  />
 
-                    <s-text-field
-                      label="Badge Label"
-                      placeholder="e.g. Drop 1 — open now"
-                      value={phase.badgeLabel}
-                      onChange={(e: any) => handleUpdatePhaseField(index, "badgeLabel", e.currentTarget.value)}
-                    />
+                  <s-text-field
+                    label="Badge Label"
+                    placeholder="e.g. Drop 1 — open now"
+                    value={phase.badgeLabel}
+                    onChange={(e: any) => handleUpdatePhaseField(index, "badgeLabel", e.currentTarget.value)}
+                  />
 
-                    {/*
+                  {/*
                       s-number-field: use key to force remount when discountType changes
                       This ensures suffix/label/max attrs are correctly applied since
                       s-* web components don't react to React prop updates reliably.
                     */}
-                    <s-number-field
-                      key={`discount-${index}-${discountType}`}
-                      ref={(el: HTMLElement | null) => { numberFieldRefs.current[index] = el; }}
-                      label={discountLabel}
-                      placeholder="10"
-                      step={1}
-                      min={1}
-                      {...(discountMax !== undefined ? { max: discountMax } : {})}
-                      suffix={discountSuffix}
-                      value={phase.discountValue}
-                      onChange={(e: any) => handleUpdatePhaseField(index, "discountValue", e.currentTarget.value)}
-                    />
+                  <s-number-field
+                    key={`discount-${index}-${discountType}`}
+                    ref={(el: HTMLElement | null) => { numberFieldRefs.current[index] = el; }}
+                    label={discountLabel}
+                    placeholder="10"
+                    step={1}
+                    min={1}
+                    {...(discountMax !== undefined ? { max: discountMax } : {})}
+                    suffix={discountSuffix}
+                    value={phase.discountValue}
+                    onChange={(e: any) => handleUpdatePhaseField(index, "discountValue", e.currentTarget.value)}
+                  />
 
-                    <s-stack direction="block" gap="small">
-                      <s-heading>Schedule</s-heading>
-                      <s-text color="subdued">
-                        Store timezone: (GMT{offset}) {storeTimezone}
-                      </s-text>
+                  <s-stack direction="block" gap="small">
+                    <s-heading>Schedule</s-heading>
+                    <s-text color="subdued">
+                      Store timezone: (GMT{offset}) {storeTimezone}
+                    </s-text>
 
-                      <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base" alignItems="end">
-                        <s-grid-item gridColumn="span 6">
-                          <s-date-field
-                            label="Start date"
-                            value={phase.startDate}
-                            onChange={(e: any) => handleUpdatePhaseField(index, "startDate", e.currentTarget.value)}
-                          />
-                        </s-grid-item>
-                        <s-grid-item gridColumn="span 6">
-                          <s-select
-                            label="Start time"
-                            icon="watch"
-                            value={phase.startTime}
-                            onChange={(e: any) => handleUpdatePhaseField(index, "startTime", e.currentTarget.value)}
-                          >
-                            {TIME_OPTIONS.map((opt) => (
-                              <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
-                            ))}
-                          </s-select>
-                        </s-grid-item>
-                      </s-grid>
-
-                      <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base" alignItems="end">
-                        <s-grid-item gridColumn="span 6">
-                          <s-date-field
-                            label="End date"
-                            value={phase.endDate}
-                            onChange={(e: any) => handleUpdatePhaseField(index, "endDate", e.currentTarget.value)}
-                          />
-                        </s-grid-item>
-                        <s-grid-item gridColumn="span 6">
-                          <s-select
-                            label="End time"
-                            icon="watch"
-                            value={phase.endTime}
-                            onChange={(e: any) => handleUpdatePhaseField(index, "endTime", e.currentTarget.value)}
-                          >
-                            {TIME_OPTIONS.map((opt) => (
-                              <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
-                            ))}
-                          </s-select>
-                        </s-grid-item>
-                      </s-grid>
-                    </s-stack>
-
-                    <s-stack direction="block" gap="small">
-                      <s-checkbox
-                        label="Automatically apply discount code at checkout"
-                        checked={phase.autoApply}
-                        onChange={(e: any) => handleUpdatePhaseField(index, "autoApply", e.target.checked)}
-                      />
-                      <s-checkbox
-                        label="Phase visible on storefront widget"
-                        checked={phase.visible}
-                        onChange={(e: any) => handleUpdatePhaseField(index, "visible", e.target.checked)}
-                      />
-                    </s-stack>
-
-                    <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base">
+                    <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base" alignItems="end">
                       <s-grid-item gridColumn="span 6">
-                        <s-text-field
-                          label="Shipping Note (Left)"
-                          placeholder="Free Shipping"
-                          value={phase.shippingNoteLeft}
-                          onChange={(e: any) => handleUpdatePhaseField(index, "shippingNoteLeft", e.currentTarget.value)}
+                        <s-date-field
+                          label="Start date"
+                          value={phase.startDate}
+                          onChange={(e: any) => handleUpdatePhaseField(index, "startDate", e.currentTarget.value)}
                         />
                       </s-grid-item>
                       <s-grid-item gridColumn="span 6">
-                        <s-text-field
-                          label="Shipping Note (Right)"
-                          placeholder="Ships in 2 days"
-                          value={phase.shippingNoteRight}
-                          onChange={(e: any) => handleUpdatePhaseField(index, "shippingNoteRight", e.currentTarget.value)}
-                        />
+                        <s-select
+                          label="Start time"
+                          icon="watch"
+                          value={phase.startTime}
+                          onChange={(e: any) => handleUpdatePhaseField(index, "startTime", e.currentTarget.value)}
+                        >
+                          {TIME_OPTIONS.map((opt) => (
+                            <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
+                          ))}
+                        </s-select>
                       </s-grid-item>
                     </s-grid>
 
-                    <s-button variant="primary" onClick={(e: any) => handleSavePhase(index, e)}>
-                      Save Phase {index + 1}
-                    </s-button>
+                    <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base" alignItems="end">
+                      <s-grid-item gridColumn="span 6">
+                        <s-date-field
+                          label="End date"
+                          value={phase.endDate}
+                          onChange={(e: any) => handleUpdatePhaseField(index, "endDate", e.currentTarget.value)}
+                        />
+                      </s-grid-item>
+                      <s-grid-item gridColumn="span 6">
+                        <s-select
+                          label="End time"
+                          icon="watch"
+                          value={phase.endTime}
+                          onChange={(e: any) => handleUpdatePhaseField(index, "endTime", e.currentTarget.value)}
+                        >
+                          {TIME_OPTIONS.map((opt) => (
+                            <s-option key={opt.value} value={opt.value}>{opt.label}</s-option>
+                          ))}
+                        </s-select>
+                      </s-grid-item>
+                    </s-grid>
                   </s-stack>
-                </s-box>
-              )
-            )}
-          </s-stack>
 
-          <s-box paddingBlock="base">
-            <s-button icon="plus" onClick={handleAddMorePhase}>Add Phase</s-button>
-          </s-box>
+                  <s-stack direction="block" gap="small">
+                    <s-checkbox
+                      label="Automatically apply discount code at checkout"
+                      checked={phase.autoApply}
+                      onChange={(e: any) => handleUpdatePhaseField(index, "autoApply", e.target.checked)}
+                    />
+                    <s-checkbox
+                      label="Phase visible on storefront widget"
+                      checked={phase.visible}
+                      onChange={(e: any) => handleUpdatePhaseField(index, "visible", e.target.checked)}
+                    />
+                  </s-stack>
+
+                  <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base">
+                    <s-grid-item gridColumn="span 6">
+                      <s-text-field
+                        label="Shipping Note (Left)"
+                        placeholder="Free Shipping"
+                        value={phase.shippingNoteLeft}
+                        onChange={(e: any) => handleUpdatePhaseField(index, "shippingNoteLeft", e.currentTarget.value)}
+                      />
+                    </s-grid-item>
+                    <s-grid-item gridColumn="span 6">
+                      <s-text-field
+                        label="Shipping Note (Right)"
+                        placeholder="Ships in 2 days"
+                        value={phase.shippingNoteRight}
+                        onChange={(e: any) => handleUpdatePhaseField(index, "shippingNoteRight", e.currentTarget.value)}
+                      />
+                    </s-grid-item>
+                  </s-grid>
+
+                  <s-button variant="primary" onClick={(e: any) => handleSavePhase(index, e)}>
+                    Save Phase {index + 1}
+                  </s-button>
+                </s-stack>
+              </s-box>
+            )
+          )}
+        </s-stack>
+
+        <s-box paddingBlock="base">
+          <s-button icon="plus" onClick={handleAddMorePhase}>Add Phase</s-button>
+        </s-box>
       </s-section>
 
       {/* ── Aside Summary ── */}
@@ -1216,8 +1401,8 @@ export default function AdditionalPage() {
                   {productOption === "products"
                     ? `${selectedProducts.length} product${selectedProducts.length !== 1 ? "s" : ""}`
                     : productOption === "collections"
-                    ? `${selectedCollections.length} collection${selectedCollections.length !== 1 ? "s" : ""}`
-                    : `${selectedTags.length} tag${selectedTags.length !== 1 ? "s" : ""}`}
+                      ? `${selectedCollections.length} collection${selectedCollections.length !== 1 ? "s" : ""}`
+                      : `${selectedTags.length} tag${selectedTags.length !== 1 ? "s" : ""}`}
                 </s-badge>
               </s-stack>
               <s-stack direction="inline" justifyContent="space-between" alignItems="center">

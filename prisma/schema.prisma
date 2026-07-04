@@ -73,6 +73,7 @@ model CampaignStage {
   startDate    DateTime
   endDate      DateTime
   status       StageStatus @default(PENDING)
+  shopifyDiscountId String?
 }
 
 model CampaignProduct {
