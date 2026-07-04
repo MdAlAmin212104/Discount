@@ -3,14 +3,18 @@ import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
+import WhatsAppSupport from "../components/WhatsAppSupport";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  return { 
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    supportWhatsAppNumber: process.env.SUPPORT_WHATSAPP_NUMBER || "8801707691162",
+  };
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, supportWhatsAppNumber } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -21,6 +25,8 @@ export default function App() {
       </s-app-nav>
 
       <Outlet />
+      
+      <WhatsAppSupport phone={supportWhatsAppNumber} />
     </AppProvider>
   );
 }

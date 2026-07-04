@@ -124,6 +124,9 @@ model ThemeSettings {
   borderRadius    Int     @default(8)
   alignment       String  @default("left")
   customJs        String  @default("")
+  customCss       String  @default("")
+  sliderItems     Int     @default(3)
+  cartMode        String  @default("stay")
 }
 
 

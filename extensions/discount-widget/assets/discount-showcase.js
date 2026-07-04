@@ -33,6 +33,18 @@
         }
 
         activeCampaignDetails = data;
+        if (data.settings) {
+          container.style.setProperty('--products-per-view', data.settings.sliderItems || 3);
+          if (data.settings.customCss) {
+            let styleTag = document.getElementById('ds-custom-css');
+            if (!styleTag) {
+              styleTag = document.createElement('style');
+              styleTag.id = 'ds-custom-css';
+              document.head.appendChild(styleTag);
+            }
+            styleTag.innerHTML = data.settings.customCss;
+          }
+        }
         initShowcase();
       })
       .catch(err => {
@@ -161,10 +173,6 @@
         el.addEventListener("click", function() {
           const prodId = this.getAttribute("data-product-id");
           selectProduct(prodId);
-        });
-
-        // Double click to open popup modal directly
-        el.addEventListener("dblclick", function() {
           openProductModal();
         });
       });
@@ -253,19 +261,7 @@
           `;
         });
 
-        // Add size guide link if option name is "size" or similar
-        const hasSize = details.options.some(o => o.name.toLowerCase().includes("size"));
-        if (hasSize) {
-          html += `
-            <div style="margin-top:10px; text-align:right;">
-              <button type="button" class="circle-size-guide-trigger" id="size-guide-trigger-${blockId}">
-                Size Guide
-              </button>
-            </div>
-          `;
-        }
       }
-
       optionsContainer.innerHTML = html;
 
       // Bind option swatch click event
@@ -290,14 +286,6 @@
           }
         });
       });
-
-      // Bind size guide modal popup trigger
-      const sgTrigger = document.getElementById(`size-guide-trigger-${blockId}`);
-      if (sgTrigger) {
-        sgTrigger.addEventListener("click", () => {
-          document.getElementById(`circle-size-modal-${blockId}`).style.display = "flex";
-        });
-      }
 
       updatePricesBlock();
     }
@@ -574,18 +562,39 @@
       const saleEl = modal.querySelector("[data-modal-sale]");
       const wasEl = modal.querySelector("[data-modal-was]");
       const exclusiveTextEl = modal.querySelector("[data-modal-shipping-text]");
+      const taglineEl = modal.querySelector("[data-modal-tagline]");
 
       if (saleEl) saleEl.innerText = formatMoney(salePrice);
       if (wasEl) wasEl.innerText = formatMoney(comparePrice);
 
-      if (exclusiveTextEl && activeStage) {
-        let shipDays = activeStage.stageNumber === 1 ? "~14 days" : activeStage.stageNumber === 2 ? "~30 days" : "~60 days";
-        exclusiveTextEl.innerText = `In your hands in ${shipDays}`;
+      if (activeStage) {
+        if (taglineEl) {
+          taglineEl.innerHTML = activeStage.phaseTitle || activeStage.label || "Exclusively for Circle Members";
+        }
+        if (exclusiveTextEl) {
+          const shippingNote = activeStage.shippingNoteLeft || activeStage.shippingNoteRight;
+          if (shippingNote) {
+            exclusiveTextEl.innerText = shippingNote;
+          } else {
+            let shipDays = activeStage.stageNumber === 1 ? "~14 days" : activeStage.stageNumber === 2 ? "~30 days" : "~60 days";
+            exclusiveTextEl.innerText = `In your hands in ${shipDays}`;
+          }
+        }
       }
     }
 
     // ── ADD TO CART FUNCTION ──
     function addToCart(variantId, quantity) {
+      if (activeCampaignDetails && activeCampaignDetails.settings && activeCampaignDetails.settings.customJs) {
+        try {
+          const customFn = new Function('variantId', 'quantity', 'context', activeCampaignDetails.settings.customJs);
+          customFn(variantId, quantity, { variantId, quantity, form: container });
+          return;
+        } catch (e) {
+          console.error("Error executing custom JS override:", e);
+        }
+      }
+
       const buttons = document.querySelectorAll(`.circle-cta-btn`);
       buttons.forEach(btn => {
         btn.innerText = "Reserving...";
@@ -601,28 +610,56 @@
       })
       .then(res => res.json())
       .then(cartData => {
-        // If there is an active discount code, redirect to auto-apply discount url
-        if (activeCampaignDetails && activeCampaignDetails.discountCode) {
-          const code = activeCampaignDetails.discountCode;
-          if (activeCampaignDetails.autoApply) {
-            window.location.href = `/discount/${encodeURIComponent(code)}?redirect=/checkout`;
-            return;
+        const cartMode = (activeCampaignDetails && activeCampaignDetails.settings && activeCampaignDetails.settings.cartMode) || "stay";
+
+        if (cartMode === "stay") {
+          buttons.forEach(btn => {
+            btn.innerText = "Added ✓";
+            btn.style.backgroundColor = "var(--forest, #1a3a2a)";
+            btn.style.color = "#ffffff";
+          });
+
+          // Dispatch events for standard Shopify AJAX carts
+          document.dispatchEvent(new CustomEvent('cart:updated', { bubbles: true }));
+          document.dispatchEvent(new CustomEvent('ajaxProduct:added', { detail: { variantId, quantity } }));
+
+          if (window.Shopify && window.Shopify.onCartUpdate) {
+            try { window.Shopify.onCartUpdate(); } catch (e) {}
           }
-        }
-        
-        if (buttonAction === "checkout") {
-          window.location.href = "/checkout";
+
+          setTimeout(() => {
+            buttons.forEach(btn => {
+              btn.innerText = container.getAttribute("data-reserve-button-text") || "Reserve Now";
+              btn.style.backgroundColor = "";
+              btn.style.color = "";
+              btn.disabled = false;
+            });
+          }, 2000);
+
         } else {
-          window.location.href = "/cart";
+          if (activeCampaignDetails && activeCampaignDetails.discountCode) {
+            const code = activeCampaignDetails.discountCode;
+            if (activeCampaignDetails.autoApply) {
+              const redirectParam = cartMode === "checkout" ? "/checkout" : "/cart";
+              window.location.href = `/discount/${encodeURIComponent(code)}?redirect=${encodeURIComponent(redirectParam)}`;
+              return;
+            }
+          }
+
+          if (cartMode === "checkout") {
+            window.location.href = "/checkout";
+          } else {
+            window.location.href = "/cart";
+          }
         }
       })
       .catch(err => {
         console.error("Cart Reservation Error:", err);
         alert("Unable to reserve product. Please check stock and try again.");
-      })
-      .finally(() => {
         buttons.forEach(btn => {
           btn.innerText = container.getAttribute("data-reserve-button-text") || "Reserve Now";
+          btn.style.backgroundColor = "";
+          btn.style.color = "";
           btn.disabled = false;
         });
       });
@@ -666,19 +703,9 @@
       const prodModal = document.getElementById(`circle-product-modal-${blockId}`);
       const closeProdBtn = document.getElementById(`circle-modal-close-${blockId}`);
 
-      const sizeModal = document.getElementById(`circle-size-modal-${blockId}`);
-      const closeSizeBtn = document.getElementById(`circle-size-close-${blockId}`);
-
-      // Open detail trigger binding inside swatches list (see swatch creation)
       if (closeProdBtn) {
         closeProdBtn.addEventListener("click", () => {
           if (prodModal) prodModal.style.display = "none";
-        });
-      }
-
-      if (closeSizeBtn) {
-        closeSizeBtn.addEventListener("click", () => {
-          if (sizeModal) sizeModal.style.display = "none";
         });
       }
 
@@ -687,38 +714,7 @@
         if (e.target === prodModal) {
           prodModal.style.display = "none";
         }
-        if (e.target === sizeModal) {
-          sizeModal.style.display = "none";
-        }
       });
-
-      // Size unit guide toggling (cm / inches)
-      const btnCm = document.getElementById(`size-btn-cm-${blockId}`);
-      const btnIn = document.getElementById(`size-btn-in-${blockId}`);
-      const label = document.getElementById(`size-unit-label-${blockId}`);
-      const cells = document.querySelectorAll(`.sz-cell-${blockId}`);
-
-      if (btnCm && btnIn) {
-        btnCm.addEventListener("click", () => {
-          btnCm.className = "active";
-          btnIn.className = "inactive";
-          if (label) label.innerText = "centimetres (cm)";
-          cells.forEach(c => {
-            const cmVal = c.getAttribute("data-cm");
-            c.innerText = cmVal;
-          });
-        });
-
-        btnIn.addEventListener("click", () => {
-          btnCm.className = "inactive";
-          btnIn.className = "active";
-          if (label) label.innerText = "inches (in)";
-          cells.forEach(c => {
-            const inVal = c.getAttribute("data-in");
-            c.innerText = inVal;
-          });
-        });
-      }
     }
 
     // ── HELPERS ──

@@ -203,61 +203,6 @@
   </div>
 </div>
 
-<!-- Size Guide modal -->
-<div class="circle-modal-overlay circle-size-modal-overlay" id="circle-size-modal-{{ block.id }}" style="display:none;" role="dialog" aria-modal="true" aria-label="Size guide">
-  <div class="circle-modal circle-size-modal" style="max-height:85vh;overflow-y:auto;">
-    <div style="padding:24px 24px 0;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-      <div>
-        <div style="font-size:9px;letter-spacing:0.24em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Exclusive</div>
-        <div style="font-family:var(--serif);font-size:22px;font-weight:400;color:var(--ink);" id="size-guide-title-{{ block.id }}">Size Guide</div>
-      </div>
-      <button type="button" class="circle-modal-close" id="circle-size-close-{{ block.id }}" aria-label="Close" style="position:static;width:32px;height:32px;border-radius:50%;background:var(--bg);border:0.5px solid var(--stone);cursor:pointer;font-size:16px;color:var(--muted);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        ✕
-      </button>
-    </div>
-    <div style="padding:16px 24px 20px;">
-      <div class="unit-toggle">
-        <button id="size-btn-cm-{{ block.id }}" class="active">cm</button>
-        <button id="size-btn-in-{{ block.id }}" class="inactive">inches</button>
-      </div>
-    </div>
-    <div style="padding:0 24px 32px;overflow-x:auto;">
-      <table class="size-guide-table">
-        <thead>
-          <tr>
-            <th></th>
-            <th>XS</th>
-            <th>S</th>
-            <th>M</th>
-            <th>L</th>
-            <th>XL</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Chest</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="86" data-in="34">86</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="91.5" data-in="36">91.5</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="96.5" data-in="38">96.5</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="101.5" data-in="40">101.5</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="106.5" data-in="42">106.5</td>
-          </tr>
-          <tr>
-            <td>Waist</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="71" data-in="28">71</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="76" data-in="30">76</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="81" data-in="32">81</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="86" data-in="34">86</td>
-            <td class="sz-cell-{{ block.id }}" data-cm="91.5" data-in="36">91.5</td>
-          </tr>
-        </tbody>
-      </table>
-      <p style="font-size:9px;color:var(--muted);letter-spacing:0.06em;line-height:1.8;margin-top:16px;">
-        All measurements in <span id="size-unit-label-{{ block.id }}">centimetres (cm)</span>. Measure your body, not the garment.
-      </p>
-    </div>
-  </div>
-</div>
 
 <link rel="stylesheet" href="{{ 'discount-showcase.css' | asset_url }}">
 <script src="{{ 'discount-showcase.js' | asset_url }}" defer="defer"></script>
