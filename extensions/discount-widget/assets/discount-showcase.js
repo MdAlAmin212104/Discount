@@ -7,6 +7,7 @@
     const campaignId = container.getAttribute("data-campaign-id");
     const blockId = container.getAttribute("data-block-id");
     const buttonAction = container.getAttribute("data-button-action") || "cart";
+    const moneyFormat = container.getAttribute("data-money-format") || "${{amount}}";
 
     const offerContent = document.getElementById(`circle-offer-content-${blockId}`);
     const fallbackLoader = document.getElementById(`discount-showcase-loading-${blockId}`);
@@ -72,7 +73,7 @@
       // Update live line status text
       const liveTextEl = container.querySelector("[data-live-status-text]");
       if (liveTextEl && activeStage) {
-        liveTextEl.innerText = `${activeStage.label} open now`;
+        liveTextEl.innerText = `${activeStage.label}`;
       }
 
       // Initialize with first product
@@ -107,8 +108,9 @@
       const stripContainer = container.querySelector("[data-drop-strip]");
       if (!stripContainer) return;
 
-      let hasPhase3 = container.getAttribute("data-has-phase-3") === "true";
-      
+      // Set class based on the number of phases for dynamic responsive grid layout
+      stripContainer.className = `circle-drop-strip cols-${stages.length}`;
+
       let html = "";
       stages.forEach((stage, idx) => {
         const isCurrent = stage.stageNumber === activePhaseNum;
@@ -145,10 +147,29 @@
       const track = container.querySelector("[data-slider-track]");
       if (!track) return;
 
+      const stages = activeCampaignDetails.stages || [];
+      const now = new Date();
+      // Determine if all drops have ended
+      const allPhasesEnded = stages.every(s => new Date(s.endDate) < now);
+      const activeStage = stages.find(s => new Date(s.startDate) <= now && new Date(s.endDate) >= now) || stages[0];
+      const shippingNoteRight = activeStage ? (activeStage.shippingNoteRight || `Ships in ~${activeStage.stageNumber * 14 + 10} days`) : "Estimated shipping date";
+
       let html = "";
       products.forEach((prod, idx) => {
-        let shipText = activePhaseNum === 1 ? "Ships in ~14 days" : activePhaseNum === 2 ? "Ships in ~30 days" : "Ships in ~60 days";
-        
+        let statusActiveHtml = "";
+        let statusShippingHtml = "";
+
+        if (allPhasesEnded) {
+          statusActiveHtml = `<div class="prod-status status-closed">Closed</div>`;
+          statusShippingHtml = `<div class="prod-status status-closed" style="display:none;">Closed</div>`;
+        } else {
+          statusActiveHtml = `
+            <div class="prod-status status-active" style="display:none;">
+              <button type="button" class="circle-prod-view-btn" data-btn-view>Tap to view →</button>
+            </div>`;
+          statusShippingHtml = `<div class="prod-status status-shipping">${shippingNoteRight}</div>`;
+        }
+
         html += `
           <div class="circle-prod" data-product-id="${prod.id}" data-handle="${prod.handle}">
             <div class="circle-prod-img">
@@ -159,8 +180,8 @@
               <div class="circle-prod-name">${prod.title}</div>
             </div>
             <div class="prod-status-wrapper">
-              <div class="prod-status status-active" style="display:none;">Tap to view →</div>
-              <div class="prod-status status-shipping">${shipText}</div>
+              ${statusActiveHtml}
+              ${statusShippingHtml}
             </div>
           </div>
         `;
@@ -172,9 +193,18 @@
       container.querySelectorAll(".circle-prod").forEach(el => {
         el.addEventListener("click", function() {
           const prodId = this.getAttribute("data-product-id");
-          selectProduct(prodId);
-          openProductModal();
+          if (selectedProduct && selectedProduct.id !== prodId) {
+            selectProduct(prodId);
+          }
         });
+
+        const viewBtn = el.querySelector("[data-btn-view]");
+        if (viewBtn) {
+          viewBtn.addEventListener("click", function(e) {
+            e.stopPropagation(); // prevent card click select trigger
+            openProductModal();
+          });
+        }
       });
     }
 
@@ -186,21 +216,27 @@
 
       selectedProduct = prod;
 
+      const stages = activeCampaignDetails.stages || [];
+      const now = new Date();
+
       // Toggle active CSS class in slider list
       container.querySelectorAll(".circle-prod").forEach(el => {
         if (el.getAttribute("data-product-id") === prodId) {
           el.classList.add("active");
-          el.querySelector(".status-active").style.display = "block";
-          el.querySelector(".status-shipping").style.display = "none";
+          const statusActive = el.querySelector(".status-active");
+          const statusShipping = el.querySelector(".status-shipping");
+          if (statusActive) statusActive.style.display = "block";
+          if (statusShipping) statusShipping.style.display = "none";
         } else {
           el.classList.remove("active");
-          el.querySelector(".status-active").style.display = "none";
-          el.querySelector(".status-shipping").style.display = "block";
+          const statusActive = el.querySelector(".status-active");
+          const statusShipping = el.querySelector(".status-shipping");
+          if (statusActive) statusActive.style.display = "none";
+          if (statusShipping) statusShipping.style.display = "block";
         }
       });
 
       // Update phase strip pricing display based on this product's price
-      const stages = activeCampaignDetails.stages || [];
       stages.forEach(stage => {
         const priceEl = container.querySelector(`[data-strip-price="${stage.stageNumber}"]`);
         if (priceEl) {
@@ -208,6 +244,19 @@
           priceEl.innerText = formatMoney(stagePrice);
         }
       });
+
+      // Re-render locked rows to update prices dynamically for the newly selected product
+      const activeStage = stages.find(s => new Date(s.startDate) <= now && new Date(s.endDate) >= now) || stages[0];
+      const activePhaseNum = activeStage ? activeStage.stageNumber : 1;
+      renderLockedRows(stages, activePhaseNum);
+
+      // Set initial price display immediately based on campaign data to prevent delay
+      let salePrice = calculatePrice(prod.originalPrice, activeStage.discountValue);
+      let comparePrice = prod.originalPrice;
+      const saleEl = container.querySelector("[data-preview-sale-price]");
+      const wasEl = container.querySelector("[data-preview-compare-price]");
+      if (saleEl) saleEl.innerText = formatMoney(salePrice);
+      if (wasEl) wasEl.innerText = formatMoney(comparePrice);
 
       // Fetch options / variant details from Shopify
       fetchStorefrontProductDetails(prod.handle);
@@ -236,7 +285,11 @@
       const optionsContainer = container.querySelector("[data-options-container]");
       if (!optionsContainer) return;
 
-      selectedVariant = details.variants[0];
+      let campaignVariantId = null;
+      if (selectedProduct && selectedProduct.variantId) {
+        campaignVariantId = Number(selectedProduct.variantId.split("/").pop());
+      }
+      selectedVariant = details.variants.find(v => v.id === campaignVariantId) || details.variants[0];
 
       // Build swatches
       let html = "";
@@ -729,7 +782,23 @@
     }
 
     function formatMoney(amount) {
-      return "$" + parseFloat(amount).toFixed(2);
+      const format = moneyFormat;
+      let value = parseFloat(amount).toFixed(2);
+
+      let formatted = format;
+      if (format.includes("{{amount}}")) {
+        formatted = format.replace("{{amount}}", value);
+      } else if (format.includes("{{amount_no_decimals}}")) {
+        formatted = format.replace("{{amount_no_decimals}}", Math.round(amount).toString());
+      } else if (format.includes("{{amount_with_comma_separator}}")) {
+        formatted = format.replace("{{amount_with_comma_separator}}", value.replace(".", ","));
+      } else if (format.includes("{{amount_no_decimals_with_comma_separator}}")) {
+        formatted = format.replace("{{amount_no_decimals_with_comma_separator}}", Math.round(amount).toString());
+      } else {
+        // Fallback for custom formats
+        formatted = format.replace(/\{\{[\s\S]*?\}\}/g, value);
+      }
+      return formatted;
     }
   });
 })();

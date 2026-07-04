@@ -23,13 +23,16 @@
   data-welcome-emphasis="{{ block.settings.welcome_emphasis | escape }}"
   data-product-heading="{{ block.settings.product_heading | escape }}"
   data-reserve-button-text="{{ block.settings.reserve_button_text | escape }}"
+  data-money-format="{{ shop.money_format | escape }}"
 >
   <div class="circle-shell">
     <!-- Offer Content Shell (JS will display it after load) -->
     <div class="circle-offer-content" id="circle-offer-content-{{ block.id }}" style="display:none;">
       <nav class="circle-nav">
         <div class="circle-nav-right">
-          <div class="circle-member-pill">{{ block.settings.member_label | default: 'Inner Circle' }}</div>
+        {% if block.settings.member_label %}  
+          <div class="circle-member-pill">{{ block.settings.member_label }}</div>
+        {% endif %}
           {% if customer %}
             <a href="{{ routes.account_logout_url }}" class="circle-signout">Sign Out</a>
           {% endif %}
@@ -39,14 +42,19 @@
       <div class="circle-hero">
         <div class="circle-live-line">
           <span class="circle-live-dot"></span>
-          <span class="circle-live-text" data-live-status-text>Active Open Now</span>
+          <span class="circle-live-text" data-live-status-text></span>
         </div>
         <h1 data-welcome-heading-wrapper>
-          {{ block.settings.welcome_heading | default: 'Exclusive Access' }}
-          <br>
-          <em data-welcome-emphasis-wrapper>{{ block.settings.welcome_emphasis | default: 'Offers' }}</em>
+        {% if block.settings.welcome_heading %}
+          {{ block.settings.welcome_heading }}<br>
+        {% endif %}
+        {% if block.settings.welcome_emphasis %}
+          <em data-welcome-emphasis-wrapper>{{ block.settings.welcome_emphasis }}</em>
+        {% endif %}
         </h1>
-        <p class="circle-hero-sub hero-sub">Members get every release first, before public launch.</p>
+        {% if block.settings.welcome_sub_heading %}
+          <p class="circle-hero-sub hero-sub">{{ block.settings.welcome_sub_heading }}</p>
+        {% endif %}
       </div>
 
       <!-- Drop Strip Grid -->
@@ -56,7 +64,9 @@
 
       <!-- Product Slider Card -->
       <div class="circle-card circle-products-card">
-        <div class="circle-card-label">{{ block.settings.product_heading | default: 'Selected Pieces' }}</div>
+      {% if block.settings.product_heading %}
+        <div class="circle-card-label">{{ block.settings.product_heading }}</div>
+      {% endif %}
         <div class="circle-slider-wrapper" data-slider>
           <button type="button" class="circle-arrow circle-arrow-prev" data-arrow="prev" aria-label="Previous" disabled>
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -141,7 +151,41 @@
     
     <!-- Fallback Loader -->
     <div class="discount-showcase-loading" id="discount-showcase-loading-{{ block.id }}">
-      Loading promotions...
+      <div class="ds-skeleton-wrapper">
+        <!-- Hero skeleton -->
+        <div class="ds-skeleton-hero">
+          <div class="ds-skeleton-line ds-skeleton-live-badge ds-shimmer"></div>
+          <div class="ds-skeleton-line ds-skeleton-title-1 ds-shimmer"></div>
+          <div class="ds-skeleton-line ds-skeleton-title-2 ds-shimmer"></div>
+          <div class="ds-skeleton-line ds-skeleton-sub ds-shimmer"></div>
+        </div>
+
+        <!-- Carts/drops grid skeleton -->
+        <div class="ds-skeleton-grid">
+          <div class="ds-skeleton-card ds-skeleton-grid-cell ds-shimmer"></div>
+          <div class="ds-skeleton-card ds-skeleton-grid-cell ds-shimmer"></div>
+          <div class="ds-skeleton-card ds-skeleton-grid-cell ds-shimmer"></div>
+        </div>
+
+        <!-- Product slider card skeleton -->
+        <div class="ds-skeleton-card ds-skeleton-slider-card">
+          <div class="ds-skeleton-line ds-skeleton-label ds-shimmer"></div>
+          <div class="ds-skeleton-slider-track">
+            <div class="ds-skeleton-prod-card ds-shimmer"></div>
+            <div class="ds-skeleton-prod-card ds-shimmer"></div>
+            <div class="ds-skeleton-prod-card ds-shimmer"></div>
+          </div>
+        </div>
+
+        <!-- Countdown / CTA Block skeleton -->
+        <div class="ds-skeleton-card ds-skeleton-cta-card">
+          <div class="ds-skeleton-line ds-skeleton-cta-eyebrow ds-shimmer" style="margin: 0 auto 12px; width: 60px;"></div>
+          <div class="ds-skeleton-line ds-skeleton-cta-tag ds-shimmer" style="margin: 0 auto 20px; width: 80px; height: 22px; border-radius: 99px;"></div>
+          <div class="ds-skeleton-countdown ds-shimmer"></div>
+          <div class="ds-skeleton-prices ds-shimmer"></div>
+          <div class="ds-skeleton-btn ds-shimmer"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -235,6 +279,12 @@
       "id": "welcome_emphasis",
       "label": "Welcome Emphasis Text",
       "default": "Offers"
+    },
+    {
+      "type": "text",
+      "id": "welcome_sub_heading",
+      "label": "Welcome Sub Heading",
+      "default": "Members get every release first, before public launch."
     },
     {
       "type": "text",
