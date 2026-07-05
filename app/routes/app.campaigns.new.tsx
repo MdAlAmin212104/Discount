@@ -1146,9 +1146,6 @@ export default function AdditionalPage() {
                       value={tagInput}
                       onChange={(e: any) => setTagInput(e.currentTarget.value)}
                     />
-                    <s-text color="subdued">
-                      Products matching this tag will be included in the campaign
-                    </s-text>
                   </s-stack>
                   <s-button onClick={handleAddTag} loading={tagLoading ? true : undefined}>
                     Add Tag
