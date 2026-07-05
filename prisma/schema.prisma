@@ -128,6 +128,22 @@ model ThemeSettings {
   customCss       String  @default("")
   sliderItems     Int     @default(3)
   cartMode        String  @default("stay")
+  memberLabel     String  @default("Inner Circle Member")
+  welcomeHeading  String  @default("Exclusive Access")
+  welcomeEmphasis String  @default("Offers")
+  welcomeSubHeading String @default("Members get every release first, before public launch.")
+  productHeading  String  @default("Selected Pieces")
+  reserveButtonText String @default("Reserve Now")
+  buttonAction    String  @default("cart")
+  bgColor         String  @default("#f0efeb")
+  textColor       String  @default("#0e0e0d")
+  borderColor     String  @default("#e2dfd9")
+  cardColor       String  @default("#faf9f7")
+  accentColor     String  @default("#1a3a2a")
+  mutedColor      String  @default("#9a9792")
+  paddingTop      Int     @default(40)
+  paddingBottom   Int     @default(40)
+  maxWidth        Int     @default(580)
 }
 
 

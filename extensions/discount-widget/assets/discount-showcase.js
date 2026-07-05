@@ -61,6 +61,64 @@
       const stages = data.stages || [];
       const products = data.products || [];
 
+      // Apply theme settings if available
+      if (data.settings) {
+        const settings = data.settings;
+        
+        // CSS Variables
+        container.style.setProperty('--bg-color', settings.bgColor || '#f0efeb');
+        container.style.setProperty('--text-color', settings.textColor || '#0e0e0d');
+        container.style.setProperty('--border-color', settings.borderColor || '#e2dfd9');
+        container.style.setProperty('--card-color', settings.cardColor || '#faf9f7');
+        container.style.setProperty('--accent-color', settings.accentColor || '#1a3a2a');
+        container.style.setProperty('--muted-color', settings.mutedColor || '#9a9792');
+        container.style.setProperty('--padding-top', (settings.paddingTop || 40) + 'px');
+        container.style.setProperty('--padding-bottom', (settings.paddingBottom || 40) + 'px');
+        container.style.setProperty('--max-width', (settings.maxWidth || 580) + 'px');
+        
+        // Font customization
+        container.style.setProperty('--font-size', (settings.fontSize || 14) + 'px');
+        container.style.setProperty('--font-weight', settings.fontWeight || '500');
+
+        // Dynamic texts
+        const memberPill = container.querySelector("[data-member-label-pill]");
+        if (memberPill && settings.memberLabel) {
+          memberPill.innerText = settings.memberLabel;
+          memberPill.style.display = "block";
+        }
+        
+        const headingWrapper = container.querySelector("[data-welcome-heading-wrapper]");
+        if (headingWrapper) {
+          let headingHtml = "";
+          if (settings.welcomeHeading) {
+            headingHtml += `${settings.welcomeHeading}<br>`;
+          }
+          if (settings.welcomeEmphasis) {
+            headingHtml += `<em>${settings.welcomeEmphasis}</em>`;
+          }
+          headingWrapper.innerHTML = headingHtml;
+        }
+        
+        const subHeading = container.querySelector("[data-welcome-sub-heading-el]");
+        if (subHeading && settings.welcomeSubHeading) {
+          subHeading.innerText = settings.welcomeSubHeading;
+          subHeading.style.display = "block";
+        }
+        
+        const prodHeading = container.querySelector("[data-product-heading-el]");
+        if (prodHeading && settings.productHeading) {
+          prodHeading.innerText = settings.productHeading;
+          prodHeading.style.display = "block";
+        }
+
+        const reserveBtnText = settings.reserveButtonText || "Reserve Now";
+        container.setAttribute("data-reserve-button-text", reserveBtnText);
+        const reserveBtn = container.querySelector("[data-reserve-main]");
+        if (reserveBtn) {
+          reserveBtn.innerText = reserveBtnText;
+        }
+      }
+
       // Determine currently active stage
       const now = new Date();
       const activeStage = stages.find(s => new Date(s.startDate) <= now && new Date(s.endDate) >= now) || stages[0];
@@ -335,6 +393,17 @@
               </div>
             </div>
           `;
+
+          // Add size guide trigger button if option name is "size" or similar
+          if (opt.name.toLowerCase().includes("size")) {
+            html += `
+              <div style="margin-top:6px; margin-bottom:12px; text-align:right;">
+                <button type="button" class="circle-size-guide-trigger" style="background:none; border:none; color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:0.08em; text-decoration:underline; cursor:pointer;">
+                  Size Guide
+                </button>
+              </div>
+            `;
+          }
         });
 
       }
@@ -585,6 +654,17 @@
                 </div>
               </div>
             `;
+
+            // Size Guide trigger in modal
+            if (opt.name.toLowerCase().includes("size")) {
+              optHtml += `
+                <div style="margin-top:6px; margin-bottom:12px; text-align:right;">
+                  <button type="button" class="circle-size-guide-trigger" style="background:none; border:none; color:var(--muted); font-size:9px; text-transform:uppercase; letter-spacing:0.08em; text-decoration:underline; cursor:pointer;">
+                    Size Guide
+                  </button>
+                </div>
+              `;
+            }
           });
         }
         modalOptions.innerHTML = optHtml;
@@ -784,6 +864,9 @@
     function setupModals() {
       const prodModal = document.getElementById(`circle-product-modal-${blockId}`);
       const closeProdBtn = document.getElementById(`circle-modal-close-${blockId}`);
+      
+      const sizeModal = document.getElementById(`circle-size-modal-${blockId}`);
+      const closeSizeBtn = document.getElementById(`circle-size-close-${blockId}`);
 
       if (closeProdBtn) {
         closeProdBtn.addEventListener("click", () => {
@@ -794,11 +877,31 @@
         });
       }
 
+      if (closeSizeBtn) {
+        closeSizeBtn.addEventListener("click", () => {
+          if (sizeModal) {
+            sizeModal.style.display = "none";
+          }
+        });
+      }
+
       // Close on clicking overlay background
       window.addEventListener("click", (e) => {
         if (e.target === prodModal) {
           prodModal.style.display = "none";
           document.body.style.overflow = "";
+        }
+        if (e.target === sizeModal) {
+          sizeModal.style.display = "none";
+        }
+      });
+
+      // Delegate click event for opening the size guide modal
+      container.addEventListener("click", (e) => {
+        if (e.target && e.target.classList.contains("circle-size-guide-trigger")) {
+          if (sizeModal) {
+            sizeModal.style.display = "flex";
+          }
         }
       });
     }
@@ -833,5 +936,38 @@
       }
       return formatted;
     }
+
+    // Global setSizeUnit for inline onclick calling
+    window.setSizeUnit = function(blockId, unit) {
+      const btnCm = document.getElementById(`size-btn-cm-${blockId}`);
+      const btnIn = document.getElementById(`size-btn-in-${blockId}`);
+      const label = document.getElementById(`size-unit-label-${blockId}`);
+      const cells = document.querySelectorAll(`.sz-cell-${blockId}`);
+
+      if (!btnCm || !btnIn) return;
+
+      if (unit === 'cm') {
+        btnCm.className = "active";
+        btnIn.className = "inactive";
+        if (label) label.innerText = "centimetres (cm)";
+        cells.forEach(c => {
+          const cmVal = c.getAttribute("data-cm");
+          c.innerText = cmVal;
+        });
+      } else if (unit === 'in') {
+        btnCm.className = "inactive";
+        btnIn.className = "active";
+        if (label) label.innerText = "inches (in)";
+        cells.forEach(c => {
+          const cmVal = parseFloat(c.getAttribute("data-cm"));
+          if (!isNaN(cmVal)) {
+            // Convert cm to inches (divide by 2.54 and round to 2 decimal places)
+            const inVal = (cmVal / 2.54).toFixed(2);
+            // Clean trailing zeros
+            c.innerText = inVal.replace(/\.00$/, "").replace(/(\.[0-9])0$/, "$1");
+          }
+        });
+      }
+    };
   });
 })();
