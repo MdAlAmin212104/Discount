@@ -16,7 +16,6 @@
         .then(res => res.json())
         .then(data => {
           if (data.error || !data.stages || data.stages.length === 0) {
-            // Product is not under an active campaign
             container.style.display = "none";
             return;
           }
@@ -53,28 +52,44 @@
       const settings = data.settings || {};
       const discountType = data.discountType || "PERCENTAGE";
 
-      // 1. Find product details inside returned data to grab its original price
-      // In proxy, we return products mapping matching the variant snapshots. Let's find one.
       const resolvedProduct = data.products && data.products[0];
       const originalPrice = resolvedProduct ? parseFloat(resolvedProduct.originalPrice) : parseFloat(container.getAttribute("data-product-price") || "0");
 
       if (isNaN(originalPrice) || originalPrice <= 0) return;
 
-      // 2. Apply Custom styling properties
-      container.style.setProperty('--dt-bg-color', settings.bgColor || '#f0efeb');
-      container.style.setProperty('--dt-text-color', settings.textColor || '#0e0e0d');
-      container.style.setProperty('--dt-border-color', settings.borderColor || '#e2dfd9');
-      container.style.setProperty('--dt-card-color', settings.cardColor || '#faf9f7');
-      container.style.setProperty('--dt-accent-color', settings.accentColor || '#1a3a2a');
-      container.style.setProperty('--dt-muted-color', settings.mutedColor || '#9a9792');
-      container.style.setProperty('--dt-sale-color', settings.salePriceColor || '#E63946');
-      container.style.setProperty('--dt-original-color', settings.originalPriceColor || '#6B7280');
-      container.style.setProperty('--dt-border-radius', (settings.borderRadius || 8) + 'px');
-      container.style.setProperty('--dt-padding', (settings.padding || 12) + 'px');
-      container.style.setProperty('--dt-font-size', (settings.fontSize || 14) + 'px');
-      container.style.setProperty('--dt-font-weight', settings.fontWeight || '500');
+      // 1. Resolve configuration strictly from database settings payload
+      const config = {
+        title: settings.welcomeHeading || "Limited time offer",
+        subtitle: settings.countdownText || "Sale ends in:",
+        bgColor: settings.bgColor || "#8b5cf6",
+        textColor: settings.textColor || "#ffffff",
+        cardBgColor: settings.cardColor || "#faf9f7",
+        accentColor: settings.accentColor || "#7c3aed",
+        mutedColor: settings.mutedColor || "#6b7280",
+        borderColor: settings.borderColor || "#e2dfd9",
+        salePriceColor: settings.salePriceColor || "#E63946",
+        originalPriceColor: settings.originalPriceColor || "#6B7280",
+        borderRadius: settings.borderRadius || 16,
+        maxWidth: settings.maxWidth || 580,
+        paddingTop: settings.paddingTop || 40,
+        paddingBottom: settings.paddingBottom || 40,
+      };
 
-      // Inject custom styling from settings if any
+      // Set CSS Variables for styling
+      container.style.setProperty('--dt-bg-color', config.bgColor);
+      container.style.setProperty('--dt-bg-gradient', `linear-gradient(135deg, ${config.bgColor}, ${config.accentColor})`);
+      container.style.setProperty('--dt-text-color', config.textColor);
+      container.style.setProperty('--dt-card-color', config.cardBgColor);
+      container.style.setProperty('--dt-accent-color', config.accentColor);
+      container.style.setProperty('--dt-muted-color', config.mutedColor);
+      container.style.setProperty('--dt-border-color', config.borderColor);
+      container.style.setProperty('--dt-sale-color', config.salePriceColor);
+      container.style.setProperty('--dt-original-color', config.originalPriceColor);
+      container.style.setProperty('--dt-border-radius', config.borderRadius + 'px');
+      container.style.setProperty('--dt-max-width', config.maxWidth + 'px');
+      container.style.setProperty('--dt-padding-top', config.paddingTop + 'px');
+      container.style.setProperty('--dt-padding-bottom', config.paddingBottom + 'px');
+
       if (settings.customCss) {
         let styleTag = document.getElementById('dt-custom-css');
         if (!styleTag) {
@@ -85,91 +100,120 @@
         styleTag.innerHTML = settings.customCss;
       }
 
-      // 3. Determine active phase by date comparison
+      // 2. Identify Active Stage
       const now = new Date();
-      const activeStage = stages.find(s => new Date(s.startDate) <= now && new Date(s.endDate) >= now) || stages[0];
-      const activePhaseNum = activeStage ? activeStage.stageNumber : 1;
-
-      // 4. Generate the HTML structure for multi-stage dropdown timeline
-      let html = `<div class="dt-timeline-wrapper">`;
-
-      // --- PHASE 1 (OR CURRENT ACTIVE PHASE) ---
-      if (activeStage) {
-        const activeSalePrice = calculatePrice(originalPrice, activeStage.discountValue, discountType);
-        
-        html += `
-          <div class="dt-phase-card active-phase">
-            <div class="dt-phase-header">
-              <span class="dt-phase-dot animate-glow"></span>
-              <span class="dt-phase-heading">${activeStage.label || 'Drop ' + activeStage.stageNumber}</span>
-              <span class="dt-phase-badge">Open Now</span>
-            </div>
-            
-            <div class="dt-price-row">
-              <span class="dt-sale-price">${formatMoney(activeSalePrice, moneyFormat)}</span>
-              <span class="dt-original-price">${formatMoney(originalPrice, moneyFormat)}</span>
-            </div>
-
-            <div class="dt-timer-wrapper">
-              <div class="dt-timer-label">Ends in:</div>
-              <div class="dt-timer-countdown" data-dt-countdown="${activeStage.endDate}">
-                <div class="dt-time-block"><span class="dt-time-val" data-days>00</span><span class="dt-time-unit">d</span></div>
-                <span class="dt-time-sep">:</span>
-                <div class="dt-time-block"><span class="dt-time-val" data-hours>00</span><span class="dt-time-unit">h</span></div>
-                <span class="dt-time-sep">:</span>
-                <div class="dt-time-block"><span class="dt-time-val" data-mins>00</span><span class="dt-time-unit">m</span></div>
-                <span class="dt-time-sep">:</span>
-                <div class="dt-time-block"><span class="dt-time-val" data-secs>00</span><span class="dt-time-unit">s</span></div>
-              </div>
-            </div>
-          </div>
-        `;
+      const activeStage = stages.find(s => new Date(s.startDate) <= now && new Date(s.endDate) >= now);
+      if (!activeStage) {
+        // Hide storefront widget if no campaigns are currently running
+        container.style.display = "none";
+        return;
       }
 
-      // --- FUTURE PHASES (DROP 2, DROP 3, ETC.) ---
+      const activePhaseNum = activeStage.stageNumber;
+
+      // Determine next phase dynamic text
+      const activeStageIndex = stages.findIndex(s => s.id === activeStage.id);
+      const nextStage = stages[activeStageIndex + 1];
+      let nextStageText = "";
+      if (nextStage) {
+        const nextLabel = nextStage.label || `Phase ${nextStage.stageNumber}`;
+        nextStageText = `${nextLabel}`;
+      } else {
+        nextStageText = "Next: Public Release starts when this ends";
+      }
+
+      const dynamicSubtitle = `${config.subtitle} • ${nextStageText}`;
+
+      // 3. Generate HTML
+      let html = `<div class="dt-timeline-wrapper">`;
+
+      // --- Active Timer Card ---
+      html += `
+        <div class="dt-active-timer-card">
+          <div class="dt-active-timer-title">${config.title}</div>
+          <div class="dt-active-timer-subtitle">${dynamicSubtitle}</div>
+          
+          <div class="dt-active-timer-countdown" data-dt-countdown="${activeStage.endDate}">
+            <div class="dt-countdown-col">
+              <span class="dt-countdown-num" data-days>00</span>
+              <span class="dt-countdown-lbl">Days</span>
+            </div>
+            <span class="dt-countdown-sep">:</span>
+            <div class="dt-countdown-col">
+              <span class="dt-countdown-num" data-hours>00</span>
+              <span class="dt-countdown-lbl">Hrs</span>
+            </div>
+            <span class="dt-countdown-sep">:</span>
+            <div class="dt-countdown-col">
+              <span class="dt-countdown-num" data-mins>00</span>
+              <span class="dt-countdown-lbl">Mins</span>
+            </div>
+            <span class="dt-countdown-sep">:</span>
+            <div class="dt-countdown-col">
+              <span class="dt-countdown-num" data-secs>00</span>
+              <span class="dt-countdown-lbl">Secs</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // --- Subsequent Drops & Releases List ---
+      let listHtml = `<div class="dt-releases-list">`;
+
+      // Loop remaining stages
       stages.forEach(stage => {
         if (stage.stageNumber > activePhaseNum) {
           const upcomingSalePrice = calculatePrice(originalPrice, stage.discountValue, discountType);
           const prevStageLabel = stages.find(s => s.stageNumber === stage.stageNumber - 1)?.label || `Drop ${stage.stageNumber - 1}`;
           
-          html += `
-            <div class="dt-phase-card upcoming-phase">
-              <div class="dt-phase-header">
-                <span class="dt-upcoming-label">${stage.label || 'Drop ' + stage.stageNumber} Opens after ${prevStageLabel}</span>
+          const eyebrow = stage.shippingNoteLeft || `DROP ${stage.stageNumber} - OPENS AFTER ${prevStageLabel.toUpperCase()}`;
+          const title = stage.phaseTitle || stage.label || `Drop ${stage.stageNumber}`;
+          const rightPrice = formatMoney(upcomingSalePrice, moneyFormat);
+          const rightShipping = stage.shippingNoteRight || `Ships in ~${stage.stageNumber * 15} days`;
+
+          listHtml += `
+            <div class="dt-release-row">
+              <div class="dt-release-left">
+                <div class="dt-release-eyebrow">${eyebrow}</div>
+                <div class="dt-release-title">${title}</div>
               </div>
-              <div class="dt-upcoming-details">
-                <span class="dt-upcoming-title">${stage.phaseTitle || 'Next Release'}</span>
-                <span class="dt-upcoming-price">${formatMoney(upcomingSalePrice, moneyFormat)}</span>
+              <div class="dt-release-right">
+                <div class="dt-release-price">${rightPrice}</div>
+                <div class="dt-release-shipping">${rightShipping}</div>
               </div>
             </div>
           `;
         }
       });
 
-      // --- PUBLIC RELEASE / DEFAULT ORIGINAL PRICE ROW ---
-      // We always show this at the end as drop 3 or general public release
-      html += `
-        <div class="dt-phase-card public-release-phase">
-          <div class="dt-phase-header">
-            <span class="dt-public-label">Open to the Public</span>
-            <span class="dt-public-badge">Regular Release</span>
+      // Public Release row (originalPrice)
+      const publicEyebrow = `DROP ${stages.length + 1} - PUBLIC RELEASE`;
+      const publicTitle = "Open To The Public";
+      const publicPrice = formatMoney(originalPrice, moneyFormat);
+      const publicShipping = "Ships in ~50-60 days";
+
+      listHtml += `
+        <div class="dt-release-row public-release">
+          <div class="dt-release-left">
+            <div class="dt-release-eyebrow">${publicEyebrow}</div>
+            <div class="dt-release-title">${publicTitle}</div>
           </div>
-          <div class="dt-public-details">
-            <span class="dt-public-title">Public Release</span>
-            <span class="dt-public-price">${formatMoney(originalPrice, moneyFormat)}</span>
+          <div class="dt-release-right">
+            <div class="dt-release-price regular-price">${publicPrice}</div>
+            <div class="dt-release-shipping">${publicShipping}</div>
           </div>
         </div>
       `;
 
+      listHtml += `</div>`;
+      html += listHtml;
       html += `</div>`;
 
       container.innerHTML = html;
-      container.style.display = "block"; // Make the widget visible
+      container.style.display = "block";
 
-      // 5. Initialize countdown clock
-      if (activeStage) {
-        setupCountdown(container.querySelector(`[data-dt-countdown]`), activeStage.endDate);
-      }
+      // 4. Start the countdown clock
+      setupCountdown(container.querySelector(`[data-dt-countdown]`), activeStage.endDate);
     }
 
     function setupCountdown(element, endDateStr) {

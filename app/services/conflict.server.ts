@@ -76,6 +76,8 @@ export async function checkAndResolveConflicts(
       candidatePrice = originalPrice * (1 - discountValue / 100);
     } else if (discountType === "FIX_AMOUNT") {
       candidatePrice = discountValue;
+    } else if (discountType === "FIXED_DISCOUNT") {
+      candidatePrice = Math.max(0, originalPrice - discountValue);
     }
 
     candidates.push({
@@ -126,19 +128,19 @@ export async function logConflict(
     2
   )} (Original: $${originalPrice.toFixed(2)}). Conflicting campaign IDs: ${conflictingCampaignIds.join(", ")}`;
 
-  await prisma.activityLog.create({
-    data: {
-      shopId,
-      campaignId,
-      event: LogEvent.CONFLICT_DETECTED,
-      message,
-      metadata: {
-        variantId,
-        conflictingCampaignIds,
-        chosenCampaignId,
-        chosenPrice,
-        originalPrice,
-      },
-    },
-  });
+  // await prisma.activityLog.create({
+  //   data: {
+  //     shopId,
+  //     campaignId,
+  //     event: LogEvent.CONFLICT_DETECTED,
+  //     message,
+  //     metadata: {
+  //       variantId,
+  //       conflictingCampaignIds,
+  //       chosenCampaignId,
+  //       chosenPrice,
+  //       originalPrice,
+  //     },
+  //   },
+  // });
 }

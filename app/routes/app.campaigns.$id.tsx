@@ -199,7 +199,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       await prisma.campaign.update({ where: { id: campaign.id }, data: { status: CampaignStatus.DRAFT } });
       await prisma.campaignStage.updateMany({ where: { campaignId: campaign.id }, data: { status: StageStatus.PENDING } });
       await prisma.schedulerJob.deleteMany({ where: { stageId: { in: campaign.stages.map((s) => s.id) } } });
-      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" paused (moved to draft).` } });
+      // await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" paused (moved to draft).` } });
       return { success: true };
     } catch (e: any) { return { error: e.message }; }
   }
@@ -258,7 +258,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       const nextStatus = campaignStartDate <= now ? CampaignStatus.ACTIVE : CampaignStatus.SCHEDULED;
       await prisma.campaign.update({ where: { id: campaign.id }, data: { status: nextStatus } });
-      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" resumed. Dates shifted starting from now.` } });
+      // await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" resumed. Dates shifted starting from now.` } });
       return { success: true };
     } catch (e: any) { return { error: e.message }; }
   }

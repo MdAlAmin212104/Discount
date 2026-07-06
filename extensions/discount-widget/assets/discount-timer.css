@@ -1,245 +1,145 @@
 .discount-timer-container {
   box-sizing: border-box;
   font-family: inherit;
-  margin: 16px 0;
+  margin: 20px auto;
   width: 100%;
+  max-width: var(--dt-max-width, 580px);
+  padding-top: var(--dt-padding-top, 40px);
+  padding-bottom: var(--dt-padding-bottom, 40px);
+  padding-left: 20px;
+  padding-right: 20px;
+  background: var(--dt-card-color);
+  border-radius: var(--dt-border-radius,10px);
 }
 
 .dt-timeline-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  max-width: 100%;
+  width: 100%;
 }
 
-/* Base card styling */
-.dt-phase-card {
-  background-color: var(--dt-card-color, #faf9f7);
-  border: 1px solid var(--dt-border-color, #e2dfd9);
-  border-radius: var(--dt-border-radius, 8px);
-  padding: var(--dt-padding, 12px);
-  position: relative;
-  transition: all 0.3s ease;
+.dt-active-timer-card {
   box-sizing: border-box;
+  text-align: center;
+  padding: 24px 20px;
+  background-color: var(--dt-bg-color, #8b5cf6);
+  background-image: var(--dt-bg-gradient, linear-gradient(135deg, #8b5cf6, #7c3aed));
+  color: var(--dt-text-color, #ffffff);
+  border-radius: var(--dt-border-radius, 16px);
+  margin-bottom: 24px;
 }
 
-/* Active phase highlighted layout */
-.dt-phase-card.active-phase {
-  border-color: var(--dt-accent-color, #1a3a2a);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+.dt-active-timer-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--dt-text-color, #ffffff);
 }
 
-.dt-phase-header {
+.dt-active-timer-subtitle {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-bottom: 20px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dt-text-color, #ffffff);
+}
+
+.dt-active-timer-countdown {
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: calc(var(--dt-font-size, 14px) - 2px);
-  font-weight: var(--dt-font-weight, 500);
-  color: var(--dt-text-color, #0e0e0d);
-  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.dt-phase-heading {
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-/* Pulse glow live indicator */
-.dt-phase-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: var(--dt-sale-color, #E63946);
-  display: inline-block;
-  position: relative;
-}
-
-.dt-phase-dot.animate-glow::after {
-  content: '';
-  position: absolute;
-  top: -4px;
-  left: -4px;
-  right: -4px;
-  bottom: -4px;
-  border-radius: 50%;
-  border: 2px solid var(--dt-sale-color, #E63946);
-  opacity: 0;
-  animation: dtPulse 1.8s infinite ease-out;
-}
-
-@keyframes dtPulse {
-  0% {
-    transform: scale(0.6);
-    opacity: 0;
-  }
-  50% {
-    opacity: 0.5;
-  }
-  100% {
-    transform: scale(1.4);
-    opacity: 0;
-  }
-}
-
-.dt-phase-badge {
-  font-size: 9px;
-  background-color: var(--dt-accent-color, #1a3a2a);
-  color: #ffffff;
-  padding: 2px 8px;
-  border-radius: 99px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-  margin-left: auto;
-}
-
-/* Pricing layout */
-.dt-price-row {
+.dt-countdown-col {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 8px 0;
+  flex-direction: column;
+  align-items: center;
+  min-width: 50px;
 }
 
-.dt-sale-price {
-  font-size: calc(var(--dt-font-size, 14px) + 6px);
+.dt-countdown-num {
+  font-size: 36px;
   font-weight: 700;
+  line-height: 1;
+  color: var(--dt-text-color, #ffffff);
+}
+
+.dt-countdown-lbl {
+  font-size: 10px;
+  font-weight: 500;
+  opacity: 0.7;
+  text-transform: uppercase;
+  margin-top: 6px;
+  letter-spacing: 0.05em;
+  color: var(--dt-text-color, #ffffff);
+}
+
+.dt-countdown-sep {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.8;
+  position: relative;
+  top: -8px;
+  color: var(--dt-text-color, #ffffff);
+}
+
+.dt-releases-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.dt-release-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--dt-border-color, #e2dfd9);
+}
+
+.dt-release-row:last-child {
+  border-bottom: none;
+}
+
+.dt-release-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.dt-release-eyebrow {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--dt-muted-color, #9a9792);
+}
+
+.dt-release-title {
+  font-size: 16px;
+  font-weight: 600;
   color: var(--dt-sale-color, #E63946);
 }
 
-.dt-original-price {
-  font-size: calc(var(--dt-font-size, 14px) - 1px);
-  color: var(--dt-original-color, #6B7280);
-  text-decoration: line-through;
-}
-
-/* Timer styles */
-.dt-timer-wrapper {
-  border-top: 1px dashed var(--dt-border-color, #e2dfd9);
-  padding-top: 8px;
-  margin-top: 8px;
+.dt-release-right {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.dt-timer-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--dt-muted-color, #9a9792);
-  font-weight: 600;
-}
-
-.dt-timer-countdown {
-  display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 4px;
-  color: var(--dt-text-color, #0e0e0d);
-  font-family: monospace;
+  text-align: right;
 }
 
-.dt-time-block {
-  display: flex;
-  align-items: baseline;
-  background: var(--dt-bg-color, #f0efeb);
-  padding: 4px 6px;
-  border-radius: 4px;
-  border: 1px solid var(--dt-border-color, #e2dfd9);
-}
-
-.dt-time-val {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.dt-time-unit {
-  font-size: 8px;
-  color: var(--dt-muted-color, #9a9792);
-  margin-left: 2px;
-  text-transform: uppercase;
-}
-
-.dt-time-sep {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--dt-border-color, #e2dfd9);
-}
-
-/* Upcoming (locked) drops styling */
-.dt-phase-card.upcoming-phase {
-  opacity: 0.85;
-  background-color: var(--dt-bg-color, #f0efeb);
-}
-
-.dt-upcoming-label {
-  font-size: 9px;
-  color: var(--dt-muted-color, #9a9792);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+.dt-release-price {
+  font-family: Georgia, Garamond, serif;
+  font-size: 18px;
   font-weight: 600;
+  color: var(--dt-original-color, #6B7280);
 }
 
-.dt-upcoming-details {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 4px;
-  font-weight: 600;
-}
-
-.dt-upcoming-title {
-  font-size: calc(var(--dt-font-size, 14px) - 1px);
-  color: var(--dt-text-color, #0e0e0d);
-}
-
-.dt-upcoming-price {
-  font-size: var(--dt-font-size, 14px);
-  color: var(--dt-accent-color, #1a3a2a);
-}
-
-/* Public Release styling */
-.dt-phase-card.public-release-phase {
-  opacity: 0.75;
-  border-style: dotted;
-}
-
-.dt-public-label {
-  font-size: 9px;
+.dt-release-shipping {
+  font-size: 11px;
   color: var(--dt-muted-color, #9a9792);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-}
-
-.dt-public-badge {
-  font-size: 8px;
-  border: 1px solid var(--dt-border-color, #e2dfd9);
-  color: var(--dt-muted-color, #9a9792);
-  padding: 1px 6px;
-  border-radius: 99px;
-  text-transform: uppercase;
-  margin-left: auto;
-}
-
-.dt-public-details {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 4px;
-  font-weight: 600;
-}
-
-.dt-public-title {
-  font-size: calc(var(--dt-font-size, 14px) - 1px);
-  color: var(--dt-text-color, #0e0e0d);
-}
-
-.dt-public-price {
-  font-size: var(--dt-font-size, 14px);
-  color: var(--dt-text-color, #0e0e0d);
 }

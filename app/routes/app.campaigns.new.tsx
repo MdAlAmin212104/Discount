@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useSubmit, useActionData, useNavigate, useFetcher, useRevalidator } from "react-router";
+import { useLoaderData, useSubmit, useActionData, useNavigate, useFetcher, useRevalidator, useNavigation } from "react-router";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -508,6 +508,9 @@ export default function AdditionalPage() {
   const fetcher = useFetcher();
   const actionFetcher = useFetcher();
   const revalidator = useRevalidator();
+  const navigation = useNavigation();
+
+  const isSaving = navigation.state !== "idle" && navigation.formMethod === "POST";
 
   const campaign = (loaderData as any)?.campaign || null;
   const campaignId = campaign?.id || null;
@@ -517,7 +520,7 @@ export default function AdditionalPage() {
 
   // ── State ──
   const [name, setName] = useState("");
-  const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
+  const [discountType, setDiscountType] = useState<"percentage" | "fixed" | "fixed_discount">("percentage");
   const [productOption, setProductOption] = useState<"products" | "collections" | "tags">("products");
 
   const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
@@ -545,7 +548,7 @@ export default function AdditionalPage() {
 
   // ── Wire s-choice-list via native DOM events ──
   useWebComponentChoice(discountChoiceRef, (val) => {
-    setDiscountType(val as "percentage" | "fixed");
+    setDiscountType(val as "percentage" | "fixed" | "fixed_discount");
   });
   useWebComponentChoice(productChoiceRef, (val) => {
     setProductOption(val as "products" | "collections" | "tags");
@@ -599,8 +602,12 @@ export default function AdditionalPage() {
         el.setAttribute("label", "Discount percent");
         el.setAttribute("suffix", "%");
         el.setAttribute("max", "100");
+      } else if (discountType === "fixed_discount") {
+        el.setAttribute("label", "Discount amount (Off)");
+        el.setAttribute("suffix", currency);
+        el.removeAttribute("max");
       } else {
-        el.setAttribute("label", "Discount amount");
+        el.setAttribute("label", "Target price amount");
         el.setAttribute("suffix", currency);
         el.removeAttribute("max");
       }
@@ -613,7 +620,14 @@ export default function AdditionalPage() {
     if (!ld?.campaign) return;
     const c = ld.campaign;
     setName(c.name);
-    const dt = c.discountType?.toLowerCase() === "percentage" ? "percentage" : "fixed";
+    let dt: "percentage" | "fixed" | "fixed_discount" = "percentage";
+    if (c.discountType === "PERCENTAGE") {
+      dt = "percentage";
+    } else if (c.discountType === "FIX_AMOUNT") {
+      dt = "fixed";
+    } else if (c.discountType === "FIXED_DISCOUNT") {
+      dt = "fixed_discount";
+    }
     setDiscountType(dt);
 
     const firstProduct = c.products[0];
@@ -872,7 +886,7 @@ export default function AdditionalPage() {
     const f = new FormData();
     if (campaignId) f.append("id", campaignId);
     f.append("name", name);
-    f.append("discountType", discountType === "percentage" ? "PERCENTAGE" : "FIX_AMOUNT");
+    f.append("discountType", discountType === "percentage" ? "PERCENTAGE" : discountType === "fixed_discount" ? "FIXED_DISCOUNT" : "FIX_AMOUNT");
     f.append("targetType", productOption === "products" ? "PRODUCT" : productOption === "collections" ? "COLLECTION" : "TAG");
     f.append("targetValue", targetValue);
     f.append("stages", JSON.stringify(stagesToSubmit));
@@ -894,13 +908,17 @@ export default function AdditionalPage() {
   const statusTone = (s: string) => s === "Active" ? "success" : s === "Scheduled" ? "info" : "neutral";
 
   // ── Discount label/suffix helpers ──
-  const discountLabel = discountType === "percentage" ? "Discount percent" : "Discount amount";
+  const discountLabel = discountType === "percentage" 
+    ? "Discount percent" 
+    : discountType === "fixed_discount"
+      ? "Discount amount (Off)"
+      : "Target price amount";
   const discountSuffix = discountType === "percentage" ? "%" : currency;
   const discountMax = discountType === "percentage" ? 100 : undefined;
 
   return (
     <s-page heading={campaignId ? "Edit Campaign" : "Create Campaign"}>
-      <s-button slot="primary-action" variant="primary" onClick={handleSaveCampaign} disabled={!name.trim()}>
+      <s-button slot="primary-action" variant="primary" onClick={handleSaveCampaign} disabled={!name.trim()} loading={isSaving ? true : undefined}>
         Save Campaign
       </s-button>
       {campaignId && campaign && (
@@ -947,6 +965,9 @@ export default function AdditionalPage() {
             </s-choice>
             <s-choice value="fixed" selected={discountType === "fixed" ? true : undefined}>
               Fixed Amount ({currency})
+            </s-choice>
+            <s-choice value="fixed_discount" selected={discountType === "fixed_discount" ? true : undefined}>
+              Discount Fixed Amount ({currency})
             </s-choice>
           </s-choice-list>
         </s-box>
@@ -1181,7 +1202,13 @@ export default function AdditionalPage() {
                     <s-stack direction="block" gap="small">
                       <s-text color="subdued">Discount</s-text>
                       <s-text>
-                        <strong>{phase.discountValue}{discountType === "percentage" ? "%" : ` ${currency}`} OFF</strong>
+                        <strong>
+                          {discountType === "percentage"
+                            ? `${phase.discountValue}% OFF`
+                            : discountType === "fixed_discount"
+                              ? `${phase.discountValue} ${currency} OFF`
+                              : `Price: ${phase.discountValue} ${currency}`}
+                        </strong>
                       </s-text>
                     </s-stack>
                     <s-stack direction="block" gap="small">
@@ -1194,7 +1221,7 @@ export default function AdditionalPage() {
                     </s-stack>
                   </s-grid>
                   <s-text color="subdued">
-                    Badge: "{phase.badgeLabel}" · Widget: {phase.visible ? "Visible" : "Hidden"} · Auto-apply: {phase.autoApply ? "Yes" : "No"}
+                    Badge: "{phase.badgeLabel}"
                   </s-text>
                 </s-stack>
               </s-box>
@@ -1294,18 +1321,7 @@ export default function AdditionalPage() {
                     </s-grid>
                   </s-stack>
 
-                  <s-stack direction="block" gap="small">
-                    <s-checkbox
-                      label="Automatically apply discount code at checkout"
-                      checked={phase.autoApply}
-                      onChange={(e: any) => handleUpdatePhaseField(index, "autoApply", e.target.checked)}
-                    />
-                    <s-checkbox
-                      label="Phase visible on storefront widget"
-                      checked={phase.visible}
-                      onChange={(e: any) => handleUpdatePhaseField(index, "visible", e.target.checked)}
-                    />
-                  </s-stack>
+                  {/* Checkboxes removed as they are no longer needed. Defaults are set to true. */}
 
                   <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base">
                     <s-grid-item gridColumn="span 6">
@@ -1351,7 +1367,13 @@ export default function AdditionalPage() {
               </s-stack>
               <s-stack direction="inline" justifyContent="space-between" alignItems="center">
                 <s-text tone="neutral">Discount type : </s-text>
-                <s-badge>{discountType === "percentage" ? "Percentage (%)" : `Fixed (${currency})`}</s-badge>
+                <s-badge>
+                  {discountType === "percentage"
+                    ? "Percentage (%)"
+                    : discountType === "fixed_discount"
+                      ? `Discount Fixed (${currency})`
+                      : `Fixed Amount (${currency})`}
+                </s-badge>
               </s-stack>
               <s-stack direction="inline" justifyContent="space-between" alignItems="center">
                 <s-text tone="neutral">Target : </s-text>
@@ -1376,7 +1398,11 @@ export default function AdditionalPage() {
                   <s-stack direction="inline" gap="small" alignItems="center" justifyContent="space-between">
                     <s-text>{p.phaseTitle || `Phase ${i + 1}`}:</s-text>
                     <s-badge tone={p.discountValue ? "success" : "neutral"}>
-                      {p.discountValue || "0"}{discountType === "percentage" ? "%" : ` ${currency}`} OFF
+                      {discountType === "percentage"
+                        ? `${p.discountValue || "0"}% OFF`
+                        : discountType === "fixed_discount"
+                          ? `${p.discountValue || "0"} ${currency} OFF`
+                          : `Price: ${p.discountValue || "0"} ${currency}`}
                     </s-badge>
                     {!p.isSaved && <s-badge tone="warning">Unsaved</s-badge>}
                   </s-stack>

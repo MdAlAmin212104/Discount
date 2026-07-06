@@ -171,6 +171,7 @@ enum CampaignStatus {
 enum DiscountType {
   PERCENTAGE
   FIX_AMOUNT
+  FIXED_DISCOUNT
 }
 
 enum TargetType {

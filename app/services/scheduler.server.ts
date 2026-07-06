@@ -115,6 +115,8 @@ export async function processStageJob(job: any) {
           proposedPrice = originalPrice * (1 - stage.discountValue / 100);
         } else if (campaign.discountType === "FIX_AMOUNT") {
           proposedPrice = stage.discountValue;
+        } else if (campaign.discountType === "FIXED_DISCOUNT") {
+          proposedPrice = Math.max(0, originalPrice - stage.discountValue);
         }
 
         // 4. Check for conflicts with other active campaigns
@@ -158,16 +160,16 @@ export async function processStageJob(job: any) {
             originalPrice
           );
         } else {
-          await prisma.activityLog.create({
-            data: {
-              shopId: shop.id,
-              campaignId: campaign.id,
-              event: LogEvent.PRICE_UPDATED,
-              message: `Updated variant ${cleanGid(variant.variantId)} price to $${finalPrice.toFixed(
-                2
-              )} (Original: $${originalPrice.toFixed(2)}) for campaign "${campaign.name}" Stage ${stage.stageNumber}`,
-            },
-          });
+          // await prisma.activityLog.create({
+          //   data: {
+          //     shopId: shop.id,
+          //     campaignId: campaign.id,
+          //     event: LogEvent.PRICE_UPDATED,
+          //     message: `Updated variant ${cleanGid(variant.variantId)} price to $${finalPrice.toFixed(
+          //       2
+          //     )} (Original: $${originalPrice.toFixed(2)}) for campaign "${campaign.name}" Stage ${stage.stageNumber}`,
+          //   },
+          // });
         }
       }
 
@@ -201,14 +203,14 @@ export async function processStageJob(job: any) {
     // Shopify discount activations bypassed
 
     // Log Stage Start
-    await prisma.activityLog.create({
-      data: {
-        shopId: shop.id,
-        campaignId: campaign.id,
-        event: LogEvent.STAGE_STARTED,
-        message: `Stage ${stage.stageNumber} ("${stage.label || `Stage ${stage.stageNumber}`}") started for campaign "${campaign.name}"`,
-      },
-    });
+    // await prisma.activityLog.create({
+    //   data: {
+    //     shopId: shop.id,
+    //     campaignId: campaign.id,
+    //     event: LogEvent.STAGE_STARTED,
+    //     message: `Stage ${stage.stageNumber} ("${stage.label || `Stage ${stage.stageNumber}`}") started for campaign "${campaign.name}"`,
+    //   },
+    // });
 
     // Job completed successfully
     await prisma.schedulerJob.update({
@@ -232,14 +234,14 @@ export async function processStageJob(job: any) {
       },
     });
 
-    await prisma.activityLog.create({
-      data: {
-        shopId: shop.id,
-        campaignId: campaign.id,
-        event: LogEvent.SCHEDULER_ERROR,
-        message: `Scheduler job failed for Stage ${stage.stageNumber} (Attempt ${attempts}/3): ${error.message || String(error)}`,
-      },
-    });
+    // await prisma.activityLog.create({
+    //   data: {
+    //     shopId: shop.id,
+    //     campaignId: campaign.id,
+    //     event: LogEvent.SCHEDULER_ERROR,
+    //     message: `Scheduler job failed for Stage ${stage.stageNumber} (Attempt ${attempts}/3): ${error.message || String(error)}`,
+    //   },
+    // });
   }
 }
 
@@ -309,6 +311,8 @@ async function processEndingCampaigns() {
                 price = snapshot.originalPrice * (1 - discountValue / 100);
               } else if (discountType === "FIX_AMOUNT") {
                 price = discountValue;
+              } else if (discountType === "FIXED_DISCOUNT") {
+                price = Math.max(0, snapshot.originalPrice - discountValue);
               }
 
               return {
@@ -345,16 +349,16 @@ async function processEndingCampaigns() {
             });
 
             // Log conflict resolution
-            await prisma.activityLog.create({
-              data: {
-                shopId: shop.id,
-                campaignId: campaign.id,
-                event: LogEvent.PRICE_RESTORED,
-                message: `Campaign ended. Variant ${cleanGid(snapshot.variantId)} price set to next active campaign ${
-                  bestCandidate.campaignId
-                } price: $${bestCandidate.price.toFixed(2)} (Original: $${snapshot.originalPrice.toFixed(2)})`,
-              },
-            });
+            // await prisma.activityLog.create({
+            //   data: {
+            //     shopId: shop.id,
+            //     campaignId: campaign.id,
+            //     event: LogEvent.PRICE_RESTORED,
+            //     message: `Campaign ended. Variant ${cleanGid(snapshot.variantId)} price set to next active campaign ${
+            //       bestCandidate.campaignId
+            //     } price: $${bestCandidate.price.toFixed(2)} (Original: $${snapshot.originalPrice.toFixed(2)})`,
+            //   },
+            // });
           } else {
             // No other active campaigns. Restore to original price
             await updateVariantPriceWithRetry(
@@ -365,16 +369,16 @@ async function processEndingCampaigns() {
             );
 
             // Log price restore
-            await prisma.activityLog.create({
-              data: {
-                shopId: shop.id,
-                campaignId: campaign.id,
-                event: LogEvent.PRICE_RESTORED,
-                message: `Campaign ended. Restored variant ${cleanGid(snapshot.variantId)} price to original $${snapshot.originalPrice.toFixed(
-                  2
-                )}`,
-              },
-            });
+            // await prisma.activityLog.create({
+            //   data: {
+            //     shopId: shop.id,
+            //     campaignId: campaign.id,
+            //     event: LogEvent.PRICE_RESTORED,
+            //     message: `Campaign ended. Restored variant ${cleanGid(snapshot.variantId)} price to original $${snapshot.originalPrice.toFixed(
+            //       2
+            //     )}`,
+            //   },
+            // });
           }
 
           // Delete the snapshot for this finished campaign
@@ -407,24 +411,24 @@ async function processEndingCampaigns() {
       });
 
       // Log Campaign Completion
-      await prisma.activityLog.create({
-        data: {
-          shopId: shop.id,
-          campaignId: campaign.id,
-          event: LogEvent.STAGE_COMPLETED,
-          message: `Campaign "${campaign.name}" completed successfully. All original prices restored.`,
-        },
-      });
+      // await prisma.activityLog.create({
+      //   data: {
+      //     shopId: shop.id,
+      //     campaignId: campaign.id,
+      //     event: LogEvent.STAGE_COMPLETED,
+      //     message: `Campaign "${campaign.name}" completed successfully. All original prices restored.`,
+      //   },
+      // });
     } catch (error: any) {
       console.error(`Error completing campaign ${campaign.id}:`, error);
-      await prisma.activityLog.create({
-        data: {
-          shopId: shop.id,
-          campaignId: campaign.id,
-          event: LogEvent.SCHEDULER_ERROR,
-          message: `Failed to complete campaign and restore prices: ${error.message || String(error)}`,
-        },
-      });
+      // await prisma.activityLog.create({
+      //   data: {
+      //     shopId: shop.id,
+      //     campaignId: campaign.id,
+      //     event: LogEvent.SCHEDULER_ERROR,
+      //     message: `Failed to complete campaign and restore prices: ${error.message || String(error)}`,
+      //   },
+      // });
     }
   }
 }

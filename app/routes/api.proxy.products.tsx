@@ -34,6 +34,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       );
     }
 
+    let themeSettings = shop.themeSettings;
+    if (!themeSettings) {
+      themeSettings = await prisma.themeSettings.upsert({
+        where: { shopId: shop.id },
+        update: {},
+        create: { shopId: shop.id },
+      });
+    }
+
     // 2. Authenticate admin and resolve campaign (by campaignId, productId, or fallback to active)
     const { admin } = await unauthenticated.admin(shop.domain);
     const campaignIdParam = url.searchParams.get("campaignId");
@@ -105,7 +114,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           stageLabel: null,
           stages: [],
           products: [],
-          settings: shop.themeSettings,
+          settings: themeSettings,
         }),
         {
           headers: {
@@ -196,7 +205,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           autoApply,
           stages: returnedStages,
           products: [],
-          settings: shop.themeSettings,
+          settings: themeSettings,
         }),
         {
           headers: {
@@ -280,7 +289,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         autoApply,
         stages: returnedStages,
         products,
-        settings: shop.themeSettings,
+        settings: themeSettings,
       }),
       {
         headers: {
