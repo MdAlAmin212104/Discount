@@ -9,7 +9,8 @@
   padding-left: 20px;
   padding-right: 20px;
   background: var(--dt-card-color);
-  border-radius: var(--dt-border-radius,10px);
+  border-radius: var(--dt-border-radius, 10px);
+  border: 1px solid var(--dt-border-color, #e2dfd9);
 }
 
 .dt-timeline-wrapper {

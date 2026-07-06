@@ -122,7 +122,7 @@
         nextStageText = "Next: Public Release starts when this ends";
       }
 
-      const dynamicSubtitle = `${config.subtitle} • ${nextStageText}`;
+      const dynamicSubtitle = `${config.subtitle}`;
 
       // 3. Generate HTML
       let html = `<div class="dt-timeline-wrapper">`;
