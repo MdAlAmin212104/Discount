@@ -34,11 +34,55 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       );
     }
 
-    // 2. Fetch the campaign (specific campaignId or active fallback)
+    // 2. Authenticate admin and resolve campaign (by campaignId, productId, or fallback to active)
+    const { admin } = await unauthenticated.admin(shop.domain);
     const campaignIdParam = url.searchParams.get("campaignId");
+    const productIdParam = url.searchParams.get("productId");
 
     let campaign;
-    if (campaignIdParam && campaignIdParam !== "active") {
+    if (productIdParam) {
+      const normalizedProductId = productIdParam.startsWith("gid://")
+        ? productIdParam
+        : `gid://shopify/Product/${productIdParam}`;
+
+      // Query variants for this product from Shopify GraphQL
+      const response = await admin.graphql(
+        `#graphql
+        query getProductVariants($id: ID!) {
+          product(id: $id) {
+            variants(first: 100) {
+              nodes {
+                id
+              }
+            }
+          }
+        }`,
+        { variables: { id: normalizedProductId } }
+      );
+      const resJson = await response.json();
+      const variantNodes = resJson.data?.product?.variants?.nodes || [];
+      const variantIds = variantNodes.map((node: any) => node.id);
+
+      if (variantIds.length > 0) {
+        const activeSnapshot = await prisma.variantPriceSnapshot.findFirst({
+          where: {
+            shopId: shop.id,
+            variantId: { in: variantIds },
+            campaign: { status: "ACTIVE" },
+          },
+          select: { campaignId: true },
+        });
+
+        if (activeSnapshot) {
+          campaign = await prisma.campaign.findFirst({
+            where: { id: activeSnapshot.campaignId, shopId: shop.id },
+            include: {
+              stages: { orderBy: { stageNumber: "asc" } },
+            },
+          });
+        }
+      }
+    } else if (campaignIdParam && campaignIdParam !== "active") {
       campaign = await prisma.campaign.findFirst({
         where: { id: campaignIdParam, shopId: shop.id },
         include: {
@@ -165,7 +209,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // 4. Load details for these variants from Shopify
-    const { admin } = await unauthenticated.admin(shop.domain);
     const variantIds = snapshots.map((s) => s.variantId);
 
     const response = await admin.graphql(

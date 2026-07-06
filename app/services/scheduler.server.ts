@@ -83,6 +83,7 @@ export async function processStageJob(job: any) {
         });
 
         const originalPrice = existingSnapshot ? existingSnapshot.originalPrice : variant.price;
+        const originalComparePrice = existingSnapshot ? existingSnapshot.originalComparePrice : variant.compareAtPrice;
 
         // 2. Create/upsert snapshot for the current campaign
         await prisma.variantPriceSnapshot.upsert({
@@ -95,6 +96,7 @@ export async function processStageJob(job: any) {
           },
           update: {
             originalPrice,
+            originalComparePrice,
             currentPrice: variant.price, // temporary until updated below
           },
           create: {
@@ -102,6 +104,7 @@ export async function processStageJob(job: any) {
             campaignId: campaign.id,
             variantId: variant.variantId,
             originalPrice,
+            originalComparePrice,
             currentPrice: variant.price,
           },
         });
@@ -195,27 +198,7 @@ export async function processStageJob(job: any) {
       data: { status: CampaignStatus.ACTIVE },
     });
 
-    // Activate the Shopify discount for this stage
-    if (stage.shopifyDiscountId) {
-      try {
-        const actRes = await admin.graphql(`#graphql
-          mutation discountCodeActivate($id: ID!) {
-            discountCodeActivate(id: $id) {
-              codeDiscountNode { id }
-              userErrors { field message }
-            }
-          }`, { variables: { id: stage.shopifyDiscountId } });
-        const actJson = await actRes.json();
-        const actErrors = actJson.data?.discountCodeActivate?.userErrors;
-        if (actErrors && actErrors.length > 0) {
-          console.error(`Scheduler failed to activate Shopify discount for stage ${stage.id}:`, JSON.stringify(actErrors));
-        } else {
-          console.log(`Scheduler successfully activated Shopify discount ${stage.shopifyDiscountId} for stage ${stage.id}`);
-        }
-      } catch (actErr) {
-        console.error(`Scheduler error activating Shopify discount for stage ${stage.id}:`, actErr);
-      }
-    }
+    // Shopify discount activations bypassed
 
     // Log Stage Start
     await prisma.activityLog.create({
@@ -378,7 +361,7 @@ async function processEndingCampaigns() {
               admin,
               snapshot.variantId,
               snapshot.originalPrice,
-              null // Clear compareAtPrice or restore if they have one? We set compareAtPrice to null or original
+              snapshot.originalComparePrice
             );
 
             // Log price restore

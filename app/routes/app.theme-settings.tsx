@@ -57,6 +57,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       paddingTop: parseInt((formData.get("paddingTop") as string) || "40"),
       paddingBottom: parseInt((formData.get("paddingBottom") as string) || "40"),
       maxWidth: parseInt((formData.get("maxWidth") as string) || "580"),
+      conflictStrategy: (formData.get("conflictStrategy") as string) || "HIGHEST_DISCOUNT",
     };
     const updated = await prisma.themeSettings.upsert({
       where: { shopId: shop.id },
@@ -112,6 +113,7 @@ export default function ThemeSettingsPage() {
   const [paddingTop, setPaddingTop] = useState(settings?.paddingTop ?? 40);
   const [paddingBottom, setPaddingBottom] = useState(settings?.paddingBottom ?? 40);
   const [maxWidth, setMaxWidth] = useState(settings?.maxWidth ?? 580);
+  const [conflictStrategy, setConflictStrategy] = useState(settings?.conflictStrategy ?? "HIGHEST_DISCOUNT");
 
   useEffect(() => {
     if (actionData?.success) shopify.toast.show("Theme settings saved!");
@@ -152,6 +154,7 @@ export default function ThemeSettingsPage() {
     f.append("paddingTop", paddingTop.toString());
     f.append("paddingBottom", paddingBottom.toString());
     f.append("maxWidth", maxWidth.toString());
+    f.append("conflictStrategy", conflictStrategy);
     submit(f, { method: "POST" });
   };
 
@@ -675,6 +678,10 @@ export default function ThemeSettingsPage() {
               <s-select label="Reserve Button Click Action" value={buttonAction} onChange={(e: any) => setButtonAction(e.currentTarget.value)}>
                 <s-option value="cart">Add to Cart</s-option>
                 <s-option value="checkout">Direct Checkout</s-option>
+              </s-select>
+              <s-select label="Overlapping Campaigns Resolution Strategy" value={conflictStrategy} onChange={(e: any) => setConflictStrategy(e.currentTarget.value)}>
+                <s-option value="HIGHEST_DISCOUNT">Apply Highest Discount (Lowest Price)</s-option>
+                <s-option value="LOWEST_DISCOUNT">Apply Lowest Discount (Highest Price)</s-option>
               </s-select>
             </s-stack>
           </s-section>

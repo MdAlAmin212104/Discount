@@ -175,7 +175,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         });
         await updateVariantPriceWithRetry(admin, snap.variantId, Math.min(...prices), snap.originalPrice);
       } else {
-        await updateVariantPriceWithRetry(admin, snap.variantId, snap.originalPrice, null);
+        await updateVariantPriceWithRetry(admin, snap.variantId, snap.originalPrice, snap.originalComparePrice);
       }
     }
   };
@@ -183,28 +183,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (intent === "DELETE") {
     try {
       await restoreVariants();
-
-      // Delete associated Shopify discounts
-      for (const stage of campaign.stages) {
-        if (stage.shopifyDiscountId) {
-          try {
-            const res = await admin.graphql(`#graphql
-              mutation discountCodeDelete($id: ID!) {
-                discountCodeDelete(id: $id) {
-                  deletedCodeDiscountId
-                  userErrors { field message }
-                }
-              }`, { variables: { id: stage.shopifyDiscountId } });
-            const resJson = await res.json();
-            const errors = resJson.data?.discountCodeDelete?.userErrors;
-            if (errors && errors.length > 0) {
-              console.error(`Shopify discount delete errors for stage ${stage.id}:`, JSON.stringify(errors));
-            }
-          } catch (delErr) {
-            console.error(`Error calling Shopify discount delete for stage ${stage.id}:`, delErr);
-          }
-        }
-      }
 
       await prisma.schedulerJob.deleteMany({ where: { stageId: { in: campaign.stages.map((s) => s.id) } } });
       await prisma.variantPriceSnapshot.deleteMany({ where: { campaignId: campaign.id } });
@@ -218,32 +196,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       await restoreVariants();
       await prisma.variantPriceSnapshot.deleteMany({ where: { campaignId: campaign.id } });
 
-      // Deactivate associated Shopify discounts
-      for (const stage of campaign.stages) {
-        if (stage.shopifyDiscountId) {
-          try {
-            const res = await admin.graphql(`#graphql
-              mutation discountCodeDeactivate($id: ID!) {
-                discountCodeDeactivate(id: $id) {
-                  codeDiscountNode { id }
-                  userErrors { field message }
-                }
-              }`, { variables: { id: stage.shopifyDiscountId } });
-            const resJson = await res.json();
-            const errors = resJson.data?.discountCodeDeactivate?.userErrors;
-            if (errors && errors.length > 0) {
-              console.error(`Shopify discount deactivate errors for stage ${stage.id}:`, JSON.stringify(errors));
-            }
-          } catch (deacErr) {
-            console.error(`Error calling Shopify discount deactivate for stage ${stage.id}:`, deacErr);
-          }
-        }
-      }
-
       await prisma.campaign.update({ where: { id: campaign.id }, data: { status: CampaignStatus.DRAFT } });
       await prisma.campaignStage.updateMany({ where: { campaignId: campaign.id }, data: { status: StageStatus.PENDING } });
       await prisma.schedulerJob.deleteMany({ where: { stageId: { in: campaign.stages.map((s) => s.id) } } });
-      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" paused (moved to draft) and Shopify discounts deactivated.` } });
+      await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" paused (moved to draft).` } });
       return { success: true };
     } catch (e: any) { return { error: e.message }; }
   }
@@ -271,50 +227,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             status: StageStatus.PENDING,
           },
         });
-
-        // Update Shopify discount dates and activate it
-        if (stage.shopifyDiscountId) {
-          try {
-            // Update Shopify startsAt and endsAt dates
-            const updateRes = await admin.graphql(`#graphql
-              mutation discountCodeBasicUpdate($id: ID!, $basicCodeDiscount: DiscountCodeBasicInput!) {
-                discountCodeBasicUpdate(id: $id, basicCodeDiscount: $basicCodeDiscount) {
-                  codeDiscountNode { id }
-                  userErrors { field message }
-                }
-              }`, {
-              variables: {
-                id: stage.shopifyDiscountId,
-                basicCodeDiscount: {
-                  title: `${campaign.name} - Phase ${stage.stageNumber}`,
-                  startsAt: newStartDate.toISOString(),
-                  endsAt: newEndDate.toISOString(),
-                },
-              },
-            });
-            const updateJson = await updateRes.json();
-            const updateErrors = updateJson.data?.discountCodeBasicUpdate?.userErrors;
-            if (updateErrors && updateErrors.length > 0) {
-              console.error(`Shopify discount update errors for stage ${stage.id}:`, JSON.stringify(updateErrors));
-            }
-
-            // Activate Shopify discount code
-            const actRes = await admin.graphql(`#graphql
-              mutation discountCodeActivate($id: ID!) {
-                discountCodeActivate(id: $id) {
-                  codeDiscountNode { id }
-                  userErrors { field message }
-                }
-              }`, { variables: { id: stage.shopifyDiscountId } });
-            const actJson = await actRes.json();
-            const actErrors = actJson.data?.discountCodeActivate?.userErrors;
-            if (actErrors && actErrors.length > 0) {
-              console.error(`Shopify discount activate errors for stage ${stage.id}:`, JSON.stringify(actErrors));
-            }
-          } catch (err) {
-            console.error(`Error updating/activating Shopify discount for stage ${stage.id}:`, err);
-          }
-        }
 
         shiftedStages.push(updatedStage);
         currentTime = newEndDate;

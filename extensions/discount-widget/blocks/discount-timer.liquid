@@ -1,0 +1,20 @@
+<div 
+  class="discount-timer-container" 
+  data-shop="{{ shop.permanent_domain }}"
+  data-product-id="{{ product.id }}"
+  data-product-price="{{ product.price | divided_by: 100.0 }}"
+  data-money-format="{{ shop.money_format | escape }}"
+  style="display: none;"
+>
+  <!-- Content is injected dynamically by discount-timer.js -->
+</div>
+
+{% schema %}
+{
+  "name": "Discount Timer",
+  "target": "section",
+  "stylesheet": "discount-timer.css",
+  "javascript": "discount-timer.js",
+  "settings": []
+}
+{% endschema %}

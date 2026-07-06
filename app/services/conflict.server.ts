@@ -85,8 +85,20 @@ export async function checkAndResolveConflicts(
     });
   }
 
-  // Find candidate with lowest price
-  candidates.sort((a, b) => a.price - b.price);
+  // Fetch conflict strategy from theme settings
+  const settings = await prisma.themeSettings.findUnique({
+    where: { shopId }
+  });
+  const strategy = settings?.conflictStrategy || "HIGHEST_DISCOUNT";
+
+  // Find candidate based on strategy
+  if (strategy === "LOWEST_DISCOUNT") {
+    // Sort descending by price (highest price/lowest discount first)
+    candidates.sort((a, b) => b.price - a.price);
+  } else {
+    // Sort ascending by price (lowest price/highest discount first)
+    candidates.sort((a, b) => a.price - b.price);
+  }
   const bestCandidate = candidates[0];
 
   return {

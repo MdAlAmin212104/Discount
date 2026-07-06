@@ -73,6 +73,71 @@ function useWebComponentChoice(
   }, [ref]);
 }
 
+function EmptyStateIllustration() {
+  return (
+    <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', margin: '0 auto' }}>
+      <defs>
+        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#f4f6f8" />
+          <stop offset="100%" stopColor="#e3e6e9" />
+        </linearGradient>
+        <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#3f51b5" />
+          <stop offset="100%" stopColor="#008060" />
+        </linearGradient>
+        <linearGradient id="sparkleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#ffeb3b" />
+          <stop offset="100%" stopColor="#ff9800" />
+        </linearGradient>
+        <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#000000" floodOpacity="0.06" />
+        </filter>
+      </defs>
+      {/* Outer dotted circle */}
+      <circle cx="60" cy="60" r="54" fill="none" stroke="#dfe3e8" strokeWidth="2" strokeDasharray="6 4" />
+      {/* Soft background shape */}
+      <circle cx="60" cy="60" r="44" fill="url(#bgGrad)" />
+      
+      {/* Calendar / Schedule card */}
+      <g filter="url(#shadow)">
+        <rect x="36" y="32" width="48" height="56" rx="8" fill="#ffffff" stroke="#e1e3e5" strokeWidth="1.5" />
+        {/* Calendar top binder */}
+        <rect x="36" y="32" width="48" height="12" rx="4" fill="url(#accentGrad)" />
+        {/* Binder holes */}
+        <circle cx="46" cy="38" r="2" fill="#ffffff" />
+        <circle cx="60" cy="38" r="2" fill="#ffffff" />
+        <circle cx="74" cy="38" r="2" fill="#ffffff" />
+        
+        {/* Grid lines inside calendar */}
+        <rect x="44" y="52" width="8" height="6" rx="1.5" fill="#f1f2f4" />
+        <rect x="56" y="52" width="8" height="6" rx="1.5" fill="#f1f2f4" />
+        <rect x="68" y="52" width="8" height="6" rx="1.5" fill="#f1f2f4" />
+        
+        <rect x="44" y="62" width="8" height="6" rx="1.5" fill="#f1f2f4" />
+        <rect x="56" y="62" width="8" height="6" rx="1.5" fill="#dfe3e8" />
+        <rect x="68" y="62" width="8" height="6" rx="1.5" fill="#f1f2f4" />
+
+        <rect x="44" y="72" width="8" height="6" rx="1.5" fill="#f1f2f4" />
+        <rect x="56" y="72" width="8" height="6" rx="1.5" fill="#f1f2f4" />
+        <rect x="68" y="72" width="8" height="6" rx="1.5" fill="#f1f2f4" />
+      </g>
+
+      {/* Floating Badge (Percent sign / Sale) */}
+      <g filter="url(#shadow)">
+        <circle cx="82" cy="74" r="16" fill="#008060" />
+        {/* Percent symbol inside badge */}
+        <path d="M78 78 L86 70" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="78.5" cy="71.5" r="1.5" fill="#ffffff" />
+        <circle cx="85.5" cy="76.5" r="1.5" fill="#ffffff" />
+      </g>
+
+      {/* Small sparkles to indicate empty/new status */}
+      <path d="M28 42 L30 38 L32 42 L28 42" fill="url(#sparkleGrad)" />
+      <path d="M92 34 L93.5 31 L95 34 L92 34" fill="url(#sparkleGrad)" />
+    </svg>
+  );
+}
+
 function EmptyState({
   title,
   paragraph,
@@ -87,34 +152,86 @@ function EmptyState({
   hideSecondary?: boolean;
 }) {
   return (
-    <s-grid gap="base" justifyItems="center" paddingBlock="large-400">
-      <s-box maxInlineSize="160px" maxBlockSize="160px">
-        <s-image
-          aspectRatio="1/0.5"
-          src="https://cdn.shopify.com/static/images/polaris/patterns/callout.png"
-          alt="Empty state graphic"
-        />
-      </s-box>
-      <s-grid justifyItems="center" maxInlineSize="450px" gap="base">
-        <s-stack alignItems="center">
-          <s-heading>{title}</s-heading>
-          <s-paragraph>{paragraph}</s-paragraph>
-        </s-stack>
-        <s-button-group>
-          {!hideSecondary && (
-            <s-button
-              slot="secondary-actions"
-              aria-label="Learn more about campaigns"
-            >
-              Learn more
-            </s-button>
-          )}
-          <s-button slot="primary-action" onClick={onAction}>
-            {actionLabel}
-          </s-button>
-        </s-button-group>
-      </s-grid>
-    </s-grid>
+    <>
+      <s-section>
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <s-card>
+            <div style={{ maxWidth: "520px", width: "100%", margin: "0 auto" }}>
+              <s-box padding="large-500">
+                <div style={{ textAlign: "center" }}>
+                  <s-grid gap="large" justifyItems="center">
+                    <div style={{ marginBottom: "8px" }}>
+                      <s-box maxInlineSize="160px" maxBlockSize="160px">
+                        <EmptyStateIllustration />
+                      </s-box>
+                    </div>
+                    <s-grid justifyItems="center" gap="base">
+                      <s-stack alignItems="center" gap="small">
+                        <div style={{ fontSize: "20px", fontWeight: "600" }}>
+                          <s-heading heading-alignment="center">
+                            {title}
+                          </s-heading>
+                        </div>
+                        <div style={{ color: "var(--p-color-text-secondary)", fontSize: "14px", lineHeight: "20px" }}>
+                          <s-paragraph text-alignment="center">
+                            {paragraph}
+                          </s-paragraph>
+                        </div>
+                      </s-stack>
+                      <s-box paddingBlockStart="small">
+                        <s-stack direction="inline" gap="small" justifyContent="center">
+                          <s-button
+                            variant="primary"
+                            onClick={onAction}
+                            aria-label={actionLabel}
+                          >
+                            {actionLabel}
+                          </s-button>
+                          {!hideSecondary && (
+                            <s-button
+                              variant="secondary"
+                              aria-label="Learn more about campaigns"
+                              href="/app/theme-settings"
+                            >
+                              Customize widget
+                            </s-button>
+                          )}
+                        </s-stack>
+                      </s-box>
+                    </s-grid>
+                  </s-grid>
+                </div>
+              </s-box>
+            </div>
+          </s-card>
+        </div>
+      </s-section>
+      {!hideSecondary && (
+        <s-section slot="aside">
+          <s-card>
+            <s-box padding="base">
+              <s-stack gap="base" alignItems="center">
+                <s-heading heading-alignment="center">Resources & Help</s-heading>
+                <div style={{ color: "var(--p-color-text-secondary)", fontSize: "13px", textAlign: "center" }}>
+                  <s-paragraph text-alignment="center">
+                    Find guides and tutorials on how to set up active campaign discount schedules, optimize buyer engagement, and drive higher store conversions.
+                  </s-paragraph>
+                </div>
+                <s-box paddingBlockStart="small">
+                  <s-button
+                    variant="secondary"
+                    href="/"
+
+                  >
+                    Request Support
+                  </s-button>
+                </s-box>
+              </s-stack>
+            </s-box>
+          </s-card>
+        </s-section>
+      )}
+    </>
   );
 }
 

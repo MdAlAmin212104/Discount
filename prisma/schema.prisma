@@ -91,6 +91,7 @@ model VariantPriceSnapshot {
   campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   variantId   String
   originalPrice Float
+  originalComparePrice Float?
   currentPrice  Float
   snapshotAt  DateTime @default(now())
 
@@ -144,6 +145,7 @@ model ThemeSettings {
   paddingTop      Int     @default(40)
   paddingBottom   Int     @default(40)
   maxWidth        Int     @default(580)
+  conflictStrategy String @default("HIGHEST_DISCOUNT")
 }
 
 
