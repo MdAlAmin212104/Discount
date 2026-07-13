@@ -425,9 +425,6 @@ export default function CampaignDetail() {
                               <s-text><strong>{parsed.phaseTitle || parsed.label}</strong></s-text>
                               <s-text tone="neutral">
                                 Badge Label: "{parsed.label}"
-                                {parsed.discountCode ? ` · Code: ${parsed.discountCode}` : ""}
-                                {parsed.visible === false ? " · Hidden" : " · Visible"}
-                                {parsed.autoApply ? " · Auto-applied" : ""}
                               </s-text>
                             </s-stack>
                           );

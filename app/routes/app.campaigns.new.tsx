@@ -15,10 +15,6 @@ interface Phase {
   startTime: string;
   endDate: string;
   endTime: string;
-  autoApply: boolean;
-  visible: boolean;
-  shippingNoteLeft: string;
-  shippingNoteRight: string;
   isSaved: boolean;
 }
 
@@ -137,10 +133,6 @@ const createEmptyPhase = (
     startTime,
     endDate: endResult.date,
     endTime: endResult.time,
-    autoApply: true,
-    visible: true,
-    shippingNoteLeft: "Free Shipping",
-    shippingNoteRight: "Ships in 2 days",
     isSaved: false,
   };
 };
@@ -375,7 +367,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     stagesData = [{
       phaseTitle: "Phase 1 Title", badgeLabel: "Drop 1 — open now", discountValue: 10,
       startDate: `${todayStr}T00:00:00Z`, endDate: `${tomorrowStr}T00:00:00Z`,
-      autoApply: true, visible: true, shippingNoteLeft: "Free Shipping", shippingNoteRight: "Ships in 2 days",
     }];
   }
 
@@ -439,9 +430,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const code = `${name.replace(/\s+/g, "_").toUpperCase()}_PHASE_${i + 1}_${campaign.id.slice(-4)}`;
         const labelObj = {
           label: s.badgeLabel, isCirclePhase: true, phaseTitle: s.phaseTitle,
-          discountCode: code,
-          shippingNoteLeft: s.shippingNoteLeft || "", shippingNoteRight: s.shippingNoteRight || "",
-          visible: s.visible !== false, autoApply: s.autoApply === true,
         };
         const stage = await tx.campaignStage.create({
           data: {
@@ -670,10 +658,6 @@ export default function AdditionalPage() {
           startTime: fmtTime(new Date(stage.startDate)),
           endDate: fmtDate(new Date(stage.endDate)),
           endTime: fmtTime(new Date(stage.endDate)),
-          autoApply: labelObj.autoApply !== false,
-          visible: labelObj.visible !== false,
-          shippingNoteLeft: labelObj.shippingNoteLeft || "",
-          shippingNoteRight: labelObj.shippingNoteRight || "",
           isSaved: true,
         };
       }));
@@ -879,8 +863,6 @@ export default function AdditionalPage() {
       discountValue: parseFloat(phase.discountValue),
       startDate: `${phase.startDate}T${phase.startTime}:00${offset}`,
       endDate: `${phase.endDate}T${phase.endTime}:00${offset}`,
-      autoApply: phase.autoApply, visible: phase.visible,
-      shippingNoteLeft: phase.shippingNoteLeft, shippingNoteRight: phase.shippingNoteRight,
     }));
 
     const f = new FormData();
@@ -1321,26 +1303,7 @@ export default function AdditionalPage() {
                     </s-grid>
                   </s-stack>
 
-                  {/* Checkboxes removed as they are no longer needed. Defaults are set to true. */}
 
-                  <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base">
-                    <s-grid-item gridColumn="span 6">
-                      <s-text-field
-                        label="Shipping Note (Left)"
-                        placeholder="Free Shipping"
-                        value={phase.shippingNoteLeft}
-                        onChange={(e: any) => handleUpdatePhaseField(index, "shippingNoteLeft", e.currentTarget.value)}
-                      />
-                    </s-grid-item>
-                    <s-grid-item gridColumn="span 6">
-                      <s-text-field
-                        label="Shipping Note (Right)"
-                        placeholder="Ships in 2 days"
-                        value={phase.shippingNoteRight}
-                        onChange={(e: any) => handleUpdatePhaseField(index, "shippingNoteRight", e.currentTarget.value)}
-                      />
-                    </s-grid-item>
-                  </s-grid>
 
                   <s-button variant="primary" onClick={(e: any) => handleSavePhase(index, e)}>
                     Save Phase {index + 1}

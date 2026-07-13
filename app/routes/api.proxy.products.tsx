@@ -135,11 +135,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     let stageLabel = activeStage?.label || (activeStage ? `Stage ${activeStage.stageNumber}` : "");
     let isCirclePhase = false;
     let phaseTitle = "";
-    let discountCode = "";
-    let shippingNoteLeft = "";
-    let shippingNoteRight = "";
-    let visible = true;
-    let autoApply = false;
 
     if (activeStage?.label) {
       try {
@@ -148,11 +143,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           stageLabel = parsed.label || `Stage ${activeStage.stageNumber}`;
           isCirclePhase = true;
           phaseTitle = parsed.phaseTitle || "";
-          discountCode = parsed.discountCode || "";
-          shippingNoteLeft = parsed.shippingNoteLeft || "";
-          shippingNoteRight = parsed.shippingNoteRight || "";
-          visible = parsed.visible !== false;
-          autoApply = parsed.autoApply === true;
         }
       } catch (e) {
         // Label is not JSON
@@ -173,8 +163,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         discountValue: s.discountValue,
         startDate: s.startDate,
         endDate: s.endDate,
-        shippingNoteLeft: parsedLabel.shippingNoteLeft || "",
-        shippingNoteRight: parsedLabel.shippingNoteRight || "",
         status: s.status,
       };
     });
@@ -198,11 +186,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           stageLabel,
           isCirclePhase,
           phaseTitle,
-          discountCode,
-          shippingNoteLeft,
-          shippingNoteRight,
-          visible,
-          autoApply,
           stages: returnedStages,
           products: [],
           settings: themeSettings,
@@ -282,11 +265,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         stageLabel,
         isCirclePhase,
         phaseTitle,
-        discountCode,
-        shippingNoteLeft,
-        shippingNoteRight,
-        visible,
-        autoApply,
         stages: returnedStages,
         products,
         settings: themeSettings,
