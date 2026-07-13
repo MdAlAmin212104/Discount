@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate, useSubmit, useActionData } from "react-router";
+import { useLoaderData, useNavigate, useSubmit, useActionData, useNavigation } from "react-router";
 import { useEffect, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate, unauthenticated } from "../shopify.server";
@@ -284,6 +284,8 @@ export default function CampaignDetail() {
   const submit = useSubmit();
   const navigate = useNavigate();
   const shopify = useAppBridge();
+  const navigation = useNavigation();
+  const isSaving = navigation.state !== "idle" && navigation.formMethod === "POST";
   const [activeTab, setActiveTab] = useState(0);
   const [currentProductPage, setCurrentProductPage] = useState(1);
   const [currentConflictPage, setCurrentConflictPage] = useState(1);
@@ -321,20 +323,9 @@ export default function CampaignDetail() {
   return (
     <s-page heading={campaign.name}>
       <s-link slot="breadcrumb-actions" onClick={() => navigate("/app/campaigns")}>Campaigns</s-link>
-
-      {/* {(campaign.status === "ACTIVE" || campaign.status === "SCHEDULED") && (
-        <s-button icon="pause-circle" slot="primary-action" variant="primary" onClick={() => submit({ intent: "PAUSE" }, { method: "POST" })}>
-          Pause Campaign
-        </s-button>
-      )}
-      {campaign.status === "DRAFT" && (
-        <s-button icon="play-circle" slot="primary-action" variant="primary" onClick={() => submit({ intent: "RESUME" }, { method: "POST" })}>
-          Resume Campaign
-        </s-button>
-      )} */}
       <s-button
         slot="secondary-actions"
-        variant="secondary"
+        variant="primary"
         onClick={() => navigate(`/app/campaigns/new?id=${campaign.id}`)}
         icon="edit"
       >
@@ -352,8 +343,8 @@ export default function CampaignDetail() {
       </s-button>
 
       {/* Tab Bar */}
-      <div style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px", marginTop: "8px", paddingBottom: "8px" }}>
-        <s-stack direction="inline" gap="small">
+      <s-box paddingBlockStart="base" paddingBlockEnd="base">
+        <s-stack direction="inline" gap="small" alignItems="center">
           {tabs.map((tab, i) => (
             <s-button key={tab} variant={activeTab === i ? "primary" : "tertiary"} onClick={() => setActiveTab(i)}>
               {tab}
@@ -361,30 +352,41 @@ export default function CampaignDetail() {
           ))}
           <StatusBadge status={campaign.status} />
         </s-stack>
-      </div>
+      </s-box>
+      <s-divider />
+      <s-box paddingBlockStart="base" />
 
       {/* TAB 1: Details */}
       {activeTab === 0 && (
-        <s-stack direction="block" gap="base">
+        <s-section>
+          <s-stack direction="block" gap="base">
           <s-card heading="Campaign Info">
             <s-box padding="base">
-              <s-grid gridTemplateColumns="repeat(4, 1fr)" gap="base">
-                <s-stack direction="block" gap="none">
-                  <s-text tone="neutral">Type</s-text>
-                  <s-text><strong>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</strong></s-text>
-                </s-stack>
-                <s-stack direction="block" gap="none">
-                  <s-text tone="neutral">Timezone</s-text>
-                  <s-text><strong>{campaign.timezone}</strong></s-text>
-                </s-stack>
-                <s-stack direction="block" gap="none">
-                  <s-text tone="neutral">Start Date</s-text>
-                  <s-text><strong>{new Date(campaign.startDate).toLocaleString()}</strong></s-text>
-                </s-stack>
-                <s-stack direction="block" gap="none">
-                  <s-text tone="neutral">End Date</s-text>
-                  <s-text><strong>{new Date(campaign.endDate).toLocaleString()}</strong></s-text>
-                </s-stack>
+              <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base">
+                <s-grid-item gridColumn="span 3">
+                  <s-stack direction="block" gap="none">
+                    <s-text tone="neutral">Type</s-text>
+                    <s-text><strong>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</strong></s-text>
+                  </s-stack>
+                </s-grid-item>
+                <s-grid-item gridColumn="span 3">
+                  <s-stack direction="block" gap="none">
+                    <s-text tone="neutral">Timezone</s-text>
+                    <s-text><strong>{campaign.timezone}</strong></s-text>
+                  </s-stack>
+                </s-grid-item>
+                <s-grid-item gridColumn="span 3">
+                  <s-stack direction="block" gap="none">
+                    <s-text tone="neutral">Start Date</s-text>
+                    <s-text><strong>{new Date(campaign.startDate).toLocaleString()}</strong></s-text>
+                  </s-stack>
+                </s-grid-item>
+                <s-grid-item gridColumn="span 3">
+                  <s-stack direction="block" gap="none">
+                    <s-text tone="neutral">End Date</s-text>
+                    <s-text><strong>{new Date(campaign.endDate).toLocaleString()}</strong></s-text>
+                  </s-stack>
+                </s-grid-item>
               </s-grid>
 
               {campaign.notes && (
@@ -463,7 +465,6 @@ export default function CampaignDetail() {
                   <s-table>
                     <s-table-header-row>
                       <s-table-header listSlot="primary">Product</s-table-header>
-                      <s-table-header>Shopify ID</s-table-header>
                       <s-table-header listSlot="secondary">Tags</s-table-header>
                     </s-table-header-row>
 
@@ -482,19 +483,11 @@ export default function CampaignDetail() {
                                   src={product.featuredImage?.url || "https://picsum.photos/id/29/80/80"}
                                 />
                               </s-clickable>
-                              <s-stack direction="block" gap="none">
-                                <s-text><strong>{product.title}</strong></s-text>
-                                {product.handle && (
-                                  <s-text color="subdued">/products/{product.handle}</s-text>
-                                )}
-                              </s-stack>
+                              <s-text><strong>{product.title}</strong></s-text>
                             </s-stack>
                           </s-table-cell>
                           <s-table-cell>
-                            <s-badge>{product.id.split("/").pop()}</s-badge>
-                          </s-table-cell>
-                          <s-table-cell>
-                            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <s-stack direction="inline" gap="small">
                               {product.tags && product.tags.length > 0 ? (
                                 product.tags.map((tag: string) => (
                                   <s-badge key={tag} tone="info">{tag}</s-badge>
@@ -502,7 +495,7 @@ export default function CampaignDetail() {
                               ) : (
                                 <s-text color="subdued">—</s-text>
                               )}
-                            </div>
+                            </s-stack>
                           </s-table-cell>
                         </s-table-row>
                       ))}
@@ -533,7 +526,11 @@ export default function CampaignDetail() {
               )}
             </s-box>
           </s-card>
-        </s-stack>
+
+          
+          </s-stack>
+        </s-section>
+        
       )}
 
       {/* TAB 2: Conflicts */}
@@ -585,10 +582,7 @@ export default function CampaignDetail() {
                                 >
                                   <s-image objectFit="cover" src={productImage} />
                                 </s-clickable>
-                                <s-stack direction="block" gap="none">
-                                  <s-text><strong>{productTitle}{variantTitle}</strong></s-text>
-                                  <s-text color="subdued">ID: {variantId.split("/").pop()}</s-text>
-                                </s-stack>
+                                <s-text><strong>{productTitle}{variantTitle}</strong></s-text>
                               </s-stack>
                             </s-table-cell>
                             <s-table-cell>
@@ -659,6 +653,7 @@ export default function CampaignDetail() {
           tone="critical"
           commandFor="delete-modal"
           command="--hide"
+          loading={isSaving ? true : undefined}
           onClick={() => submit({ intent: "DELETE" }, { method: "POST" })}
         >
           Delete campaign

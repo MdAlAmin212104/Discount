@@ -1,9 +1,11 @@
-import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate } from "react-router";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
+import { useLoaderData, useNavigate, useSubmit, useActionData, useNavigation } from "react-router";
 import { useState, useEffect, useRef } from "react";
 import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
-import type { CampaignStatus } from "@prisma/client";
+import { CampaignStatus, StageStatus } from "@prisma/client";
+import { updateVariantPriceWithRetry } from "../services/shopify-price.server";
+import { useAppBridge } from "@shopify/app-bridge-react";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -16,6 +18,55 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 
   return { campaigns };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session, admin } = await authenticate.admin(request);
+  const shop = await getOrCreateShop(session.shop, session.accessToken || "");
+
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+  const campaignId = formData.get("id") as string;
+
+  if (intent === "DELETE") {
+    try {
+      const campaign = await prisma.campaign.findFirst({
+        where: { id: campaignId, shopId: shop.id },
+        include: { stages: true },
+      });
+      if (!campaign) return { error: "Campaign not found" };
+
+      // Restore variants logic
+      const snapshots = await prisma.variantPriceSnapshot.findMany({ where: { shopId: shop.id, campaignId: campaign.id } });
+      for (const snap of snapshots) {
+        const others = await prisma.variantPriceSnapshot.findMany({
+          where: { shopId: shop.id, variantId: snap.variantId, campaignId: { not: campaign.id }, campaign: { status: CampaignStatus.ACTIVE } },
+          include: { campaign: { include: { stages: { where: { status: StageStatus.ACTIVE } } } } },
+        });
+        if (others.length > 0) {
+          const prices = others.map((o) => {
+            const s = o.campaign.stages[0];
+            let p = snap.originalPrice;
+            if (o.campaign.discountType === "PERCENTAGE") p = snap.originalPrice * (1 - (s?.discountValue ?? 0) / 100);
+            else p = (s?.discountValue ?? 0);
+            return p;
+          });
+          await updateVariantPriceWithRetry(admin, snap.variantId, Math.min(...prices), snap.originalPrice);
+        } else {
+          await updateVariantPriceWithRetry(admin, snap.variantId, snap.originalPrice, snap.originalComparePrice);
+        }
+      }
+
+      await prisma.schedulerJob.deleteMany({ where: { stageId: { in: campaign.stages.map((s) => s.id) } } });
+      await prisma.variantPriceSnapshot.deleteMany({ where: { campaignId: campaign.id } });
+      await prisma.campaign.delete({ where: { id: campaign.id } });
+      return { success: true };
+    } catch (e: any) {
+      return { error: e.message };
+    }
+  }
+
+  return { error: "Unknown intent" };
 };
 
 const STATUS_TABS = ["ALL", "ACTIVE", "SCHEDULED", "DRAFT", "COMPLETED"];
@@ -238,10 +289,17 @@ function EmptyState({
 export default function CampaignsList() {
   const { campaigns } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const submit = useSubmit();
+  const actionData = useActionData<typeof action>();
+  const shopify = useAppBridge();
+  const navigation = useNavigation();
+  const isSaving = navigation.state !== "idle" && navigation.formMethod === "POST";
+
   const [activeTab, setActiveTab] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("created-desc");
   const [currentPage, setCurrentPage] = useState(1);
+  const [campaignToDelete, setCampaignToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const sortChoiceRef = useRef<any>(null);
 
@@ -268,6 +326,15 @@ export default function CampaignsList() {
       }
     });
   }, [sortBy]);
+
+  useEffect(() => {
+    if (actionData?.success) {
+      shopify.toast.show("Campaign deleted");
+      setCampaignToDelete(null);
+    } else if (actionData?.error) {
+      shopify.toast.show(actionData.error, { isError: true });
+    }
+  }, [actionData]);
 
   // Filter campaigns
   const filtered = campaigns.filter((c) => {
@@ -426,13 +493,22 @@ export default function CampaignsList() {
                           </s-text>
                         </s-table-cell>
                         <s-table-cell>
-                          <s-button
-                            variant="secondary"
-                            onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
-                            icon="edit"
-                          >
-                            Edit
-                          </s-button>
+                          <s-stack direction="inline" justifyContent="end" gap="small">
+                             <s-button
+                              variant="primary"
+                              onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
+                              icon="edit"
+                            />
+                            <s-button
+                              variant="primary"
+                              tone="critical"
+                              icon="delete"
+                              commandFor="delete-modal"
+                              command="--show"
+                              onClick={() => setCampaignToDelete({ id: campaign.id, name: campaign.name })}
+                            />
+                            </s-stack>
+                         
                         </s-table-cell>
                       </s-table-row>
                     ))}
@@ -482,6 +558,39 @@ export default function CampaignsList() {
           </s-section>
         </>
       )}
+      {/* Delete Confirmation Modal */}
+      <s-modal
+        id="delete-modal"
+        heading="Delete campaign?"
+        size="small"
+      >
+        <s-box padding="base">
+          <s-stack direction="block" gap="base">
+            <s-text>
+              Are you sure you want to delete the campaign <strong>{campaignToDelete?.name}</strong>? This action cannot be undone and baseline prices will be restored.
+            </s-text>
+          </s-stack>
+        </s-box>
+        <s-button
+          slot="primary-action"
+          variant="primary"
+          tone="critical"
+          commandFor="delete-modal"
+          command="--hide"
+          loading={isSaving ? true : undefined}
+          onClick={() => submit({ intent: "DELETE", id: campaignToDelete?.id || "" }, { method: "POST" })}
+        >
+          Delete campaign
+        </s-button>
+        <s-button
+          slot="secondary-actions"
+          variant="secondary"
+          commandFor="delete-modal"
+          command="--hide"
+        >
+          Cancel
+        </s-button>
+      </s-modal>
     </s-page>
   );
 }
