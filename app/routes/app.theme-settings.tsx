@@ -58,6 +58,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       paddingBottom: parseInt((formData.get("paddingBottom") as string) || "40"),
       maxWidth: parseInt((formData.get("maxWidth") as string) || "580"),
       conflictStrategy: (formData.get("conflictStrategy") as string) || "HIGHEST_DISCOUNT",
+      publicShipping: formData.get("publicShipping") as string,
     };
     const updated = await prisma.themeSettings.upsert({
       where: { shopId: shop.id },
@@ -117,6 +118,7 @@ export default function ThemeSettingsPage() {
   const [paddingBottom, setPaddingBottom] = useState(settings?.paddingBottom ?? 40);
   const [maxWidth, setMaxWidth] = useState(settings?.maxWidth ?? 580);
   const [conflictStrategy, setConflictStrategy] = useState(settings?.conflictStrategy ?? "HIGHEST_DISCOUNT");
+  const [publicShipping, setPublicShipping] = useState(settings?.publicShipping ?? "Ships in ~5-7 days");
 
   useEffect(() => {
     if (actionData?.success) shopify.toast.show("Theme settings saved!");
@@ -158,6 +160,7 @@ export default function ThemeSettingsPage() {
     f.append("paddingBottom", paddingBottom.toString());
     f.append("maxWidth", maxWidth.toString());
     f.append("conflictStrategy", conflictStrategy);
+    f.append("publicShipping", publicShipping);
     submit(f, { method: "POST" });
   };
 
@@ -345,7 +348,7 @@ export default function ThemeSettingsPage() {
                 </div>
                 <div className="preview-release-right">
                   <div className="preview-release-price">£166.98</div>
-                  <div className="preview-release-shipping">Ships in ~30-40 days</div>
+                  <div className="preview-release-shipping">Ships in ~5-7 days</div>
                 </div>
               </div>
 
@@ -356,7 +359,9 @@ export default function ThemeSettingsPage() {
                 </div>
                 <div className="preview-release-right">
                   <div className="preview-release-price">£253.00</div>
-                  <div className="preview-release-shipping">Ships in ~50-60 days</div>
+                  {publicShipping && publicShipping.trim() !== "" && (
+                    <div className="preview-release-shipping">{publicShipping}</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -399,6 +404,12 @@ export default function ThemeSettingsPage() {
                 label="Timer Subheading" 
                 value={countdownText} 
                 onChange={(e: any) => setCountdownText(e.currentTarget.value)} 
+              />
+              <s-text-field 
+                label="Public Release Shipping Note" 
+                value={publicShipping} 
+                onChange={(e: any) => setPublicShipping(e.currentTarget.value)} 
+                details="Specify shipping time for public release, e.g., 'Ships in ~5-7 days'. Leave empty to hide."
               />
               <s-select 
                 label="Overlapping Campaigns Resolution Strategy" 

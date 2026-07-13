@@ -190,7 +190,11 @@
       const publicEyebrow = `DROP ${stages.length + 1} - PUBLIC RELEASE`;
       const publicTitle = "Open To The Public";
       const publicPrice = formatMoney(originalPrice, moneyFormat);
-      const publicShipping = "Ships in ~50-60 days";
+      const publicShipping = settings.publicShipping !== undefined ? settings.publicShipping : "Ships in ~5-7 days";
+      let shippingHtml = "";
+      if (publicShipping && publicShipping.trim() !== "") {
+        shippingHtml = `<div class="dt-release-shipping">${publicShipping}</div>`;
+      }
 
       listHtml += `
         <div class="dt-release-row public-release">
@@ -200,7 +204,7 @@
           </div>
           <div class="dt-release-right">
             <div class="dt-release-price regular-price">${publicPrice}</div>
-            <div class="dt-release-shipping">${publicShipping}</div>
+            ${shippingHtml}
           </div>
         </div>
       `;

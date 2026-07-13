@@ -146,6 +146,7 @@ model ThemeSettings {
   paddingBottom   Int     @default(40)
   maxWidth        Int     @default(580)
   conflictStrategy String @default("HIGHEST_DISCOUNT")
+  publicShipping   String @default("Ships in ~5-7 days")
 }
 
 
