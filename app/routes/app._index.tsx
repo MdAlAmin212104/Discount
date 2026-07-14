@@ -76,15 +76,13 @@ function KPICard({ title, value, icon, subtext, badgeText, badgeTone }: {
         <s-stack gap="base">
           <s-stack direction="inline" justifyContent="space-between" alignItems="center">
             <s-text color="subdued">
-              {title}
+              <strong>{title}</strong>
             </s-text>
             {badgeText && <s-badge tone={badgeTone}>{badgeText}</s-badge>}
           </s-stack>
-          <s-stack direction="inline" gap="base" alignItems="baseline">
-            <h2 style={{ fontSize: "28px", fontWeight: "bold", margin: 0 }}>
-              {value}
-            </h2>
-          </s-stack>
+          <s-heading>
+            {value}
+          </s-heading>
           <s-stack direction="inline" gap="small" alignItems="center">
             <s-icon type={icon as any} size="small" />
             <s-text color="subdued">
@@ -94,66 +92,70 @@ function KPICard({ title, value, icon, subtext, badgeText, badgeTone }: {
         </s-stack>
       </s-box>
     </s-card>
+
   );
 }
 
 function KPIsSkeleton() {
   return (
-    <s-grid gridTemplateColumns="repeat(auto-fit, minmax(220px, 1fr))" gap="base">
-      {[1, 2, 3, 4].map((i) => (
-        <s-card key={i}>
-          <s-box padding="base">
-            <s-stack gap="base">
-              <s-stack direction="inline" justifyContent="space-between">
-                <div className="shimmer-box" style={{ width: "60%", height: "16px" }} />
-                <div className="shimmer-box" style={{ width: "20%", height: "16px" }} />
+    <s-section>
+      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(220px, 1fr))" gap="base">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <s-card key={i}>
+            <s-box padding="base">
+              <s-stack gap="base">
+                <s-stack direction="inline" justifyContent="space-between">
+                  <s-text color="subdued">Loading metric...</s-text>
+                </s-stack>
+                <s-text>—</s-text>
+                <s-text color="subdued">Calculating...</s-text>
               </s-stack>
-              <div className="shimmer-box" style={{ width: "40%", height: "32px", marginBlock: "8px" }} />
-              <div className="shimmer-box" style={{ width: "80%", height: "14px" }} />
-            </s-stack>
-          </s-box>
-        </s-card>
-      ))}
-    </s-grid>
+            </s-box>
+          </s-card>
+        ))}
+      </s-grid>
+    </s-section>
   );
 }
 
 function KPIsGrid({ stats }: { stats: any }) {
   return (
-    <s-grid gridTemplateColumns="repeat(auto-fit, minmax(220px, 1fr))" gap="base">
-      <KPICard
-        title="Active Campaigns"
-        value={stats.activeCampaigns}
-        icon="play-circle"
-        subtext={`${stats.activeCampaigns} live campaigns`}
-        badgeText="Live"
-        badgeTone="success"
-      />
-      <KPICard
-        title="Scheduled"
-        value={stats.scheduledCampaigns}
-        icon="calendar"
-        subtext={`${stats.scheduledCampaigns} upcoming`}
-        badgeText="Upcoming"
-        badgeTone="info"
-      />
-      <KPICard
-        title="Products Affected"
-        value={stats.productsAffected}
-        icon="product"
-        subtext="total variant count"
-        badgeText="Total"
-        badgeTone="neutral"
-      />
-      <KPICard
-        title="Today's Updates"
-        value={stats.priceUpdatesToday}
-        icon="check"
-        subtext="automatic price changes"
-        badgeText="Today"
-        badgeTone="caution"
-      />
-    </s-grid>
+    <s-section padding="base">
+      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="small">
+        <KPICard
+          title="Active Campaigns"
+          value={stats.activeCampaigns}
+          icon="play-circle"
+          subtext={`${stats.activeCampaigns} live campaigns`}
+          badgeText="Live"
+          badgeTone="success"
+        />
+        <KPICard
+          title="Scheduled"
+          value={stats.scheduledCampaigns}
+          icon="calendar"
+          subtext={`${stats.scheduledCampaigns} upcoming`}
+          badgeText="Upcoming"
+          badgeTone="info"
+        />
+        <KPICard
+          title="Products Affected"
+          value={stats.productsAffected}
+          icon="product"
+          subtext="total variant count"
+          badgeText="Total"
+          badgeTone="neutral"
+        />
+        <KPICard
+          title="Today's Updates"
+          value={stats.priceUpdatesToday}
+          icon="check-circle"
+          subtext="price adjustments"
+          badgeText="Today"
+          badgeTone="caution"
+        />
+      </s-grid>
+    </s-section>
   );
 }
 
@@ -162,17 +164,15 @@ function ActiveCampaignsSkeleton() {
     <s-card>
       <s-box padding="base">
         <s-stack gap="base">
-          <div className="shimmer-box" style={{ width: "40%", height: "20px" }} />
+          <s-text><strong>Loading campaigns...</strong></s-text>
           <s-divider />
           {[1, 2].map((i) => (
             <s-box key={i} padding="base" background="subdued" borderRadius="base">
               <s-stack gap="base">
                 <s-stack direction="inline" justifyContent="space-between">
-                  <div className="shimmer-box" style={{ width: "50%", height: "18px" }} />
-                  <div className="shimmer-box" style={{ width: "20%", height: "18px" }} />
+                  <s-text color="subdued">Synchronizing schedule data...</s-text>
                 </s-stack>
-                <div className="shimmer-box" style={{ width: "30%", height: "14px" }} />
-                <div className="shimmer-box" style={{ width: "100%", height: "8px", marginTop: "8px" }} />
+                <s-text color="subdued">Updating progress state...</s-text>
               </s-stack>
             </s-box>
           ))}
@@ -189,16 +189,16 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
         <s-stack gap="base">
           <s-stack direction="inline" justifyContent="space-between" alignItems="center">
             <s-stack gap="small">
-              <h3 style={{ fontSize: "16px", fontWeight: "600", margin: 0 }}>
-                Active Campaigns
-              </h3>
+              <s-heading>Active Campaigns</s-heading>
               <s-text color="subdued">
                 Currently running promotions on your store
               </s-text>
             </s-stack>
             <s-button variant="tertiary" onClick={() => navigate("/app/campaigns")}>
-              View all
-              <s-icon type="chevron-right" />
+              <s-stack direction="inline" gap="small" alignItems="center">
+                <s-text>View all</s-text>
+                <s-icon type="chevron-right" size="small" />
+              </s-stack>
             </s-button>
           </s-stack>
 
@@ -240,7 +240,7 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
                     borderRadius="base"
                   >
                     <s-stack gap="base">
-                      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: "var(--p-space-400)" }}>
+                      <s-stack direction="inline" justifyContent="space-between" alignItems="start" gap="base">
                         <s-stack gap="small">
                           <s-stack direction="inline" gap="small" alignItems="center">
                             <s-text>
@@ -267,7 +267,7 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
                             {activeStage.label || `Stage ${activeStage.stageNumber}`}
                           </s-badge>
                         )}
-                      </div>
+                      </s-stack>
 
                       <s-stack gap="small">
                         <s-stack direction="inline" justifyContent="space-between">
@@ -301,13 +301,13 @@ function ListSkeleton() {
     <s-card>
       <s-box padding="base">
         <s-stack gap="base">
-          <div className="shimmer-box" style={{ width: "50%", height: "20px" }} />
+          <s-text><strong>Loading...</strong></s-text>
           <s-divider />
           {[1, 2].map((i) => (
             <s-box key={i} paddingBlock="base" paddingInline="none">
               <s-stack gap="base">
-                <div className="shimmer-box" style={{ width: "70%", height: "16px" }} />
-                <div className="shimmer-box" style={{ width: "40%", height: "14px" }} />
+                <s-text color="subdued">Loading campaign details...</s-text>
+                <s-text color="subdued">Please wait...</s-text>
               </s-stack>
             </s-box>
           ))}
@@ -324,9 +324,7 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
         <s-stack gap="base">
           <s-stack direction="inline" justifyContent="space-between" alignItems="center">
             <s-stack gap="small">
-              <h3 style={{ fontSize: "16px", fontWeight: "600", margin: 0 }}>
-                Upcoming Events
-              </h3>
+              <s-heading>Upcoming Events</s-heading>
               <s-text color="subdued">
                 Next 24 hours
               </s-text>
@@ -352,14 +350,14 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
             </s-box>
           ) : (
             <s-stack gap="none">
-              {upcomingJobs.map((job: any, idx: number) => (
+              {upcomingJobs.map((job: any) => (
                 <s-box
                   key={job.id}
                   paddingBlock="base"
                   paddingInline="none"
                 >
                   <s-stack gap="small">
-                    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "var(--p-space-200)" }}>
+                    <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="small">
                       <s-text>
                         <strong>{job.details?.campaignName || "Discount Update"}</strong>
                       </s-text>
@@ -369,7 +367,7 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
                           minute: "2-digit",
                         })}
                       </s-badge>
-                    </div>
+                    </s-stack>
                     <s-text color="subdued">
                       {job.details?.stageLabel || "Stage update"} ·{" "}
                       {job.details
@@ -394,9 +392,7 @@ function RecentlyCompletedSection({ recentlyCompleted }: any) {
         <s-stack gap="base">
           <s-stack direction="inline" justifyContent="space-between" alignItems="center">
             <s-stack gap="small">
-              <h3 style={{ fontSize: "16px", fontWeight: "600", margin: 0 }}>
-                Completed
-              </h3>
+              <s-heading>Completed</s-heading>
               <s-text color="subdued">
                 Recently finished campaigns
               </s-text>
@@ -422,21 +418,21 @@ function RecentlyCompletedSection({ recentlyCompleted }: any) {
             </s-box>
           ) : (
             <s-stack gap="none">
-              {recentlyCompleted.map((campaign: any, idx: number) => (
+              {recentlyCompleted.map((campaign: any) => (
                 <s-box
                   key={campaign.id}
                   paddingBlock="base"
                   paddingInline="none"
                 >
                   <s-stack gap="small">
-                    <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "var(--p-space-200)" }}>
+                    <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="small">
                       <s-text>
                         <strong>{campaign.name}</strong>
                       </s-text>
                       <s-badge tone="success">
                         ✓ Done
                       </s-badge>
-                    </div>
+                    </s-stack>
                     <s-text color="subdued">
                       Ended {new Date(campaign.endDate).toLocaleDateString(undefined, {
                         month: "short",
@@ -460,9 +456,7 @@ function SummarySection({ stats }: { stats: any }) {
     <s-card>
       <s-box padding="base">
         <s-stack gap="base">
-          <h3 style={{ fontSize: "16px", fontWeight: "600", margin: 0 }}>
-            Campaign Summary
-          </h3>
+          <s-heading>Campaign Summary</s-heading>
 
           <s-divider />
 
@@ -508,6 +502,27 @@ function SummarySection({ stats }: { stats: any }) {
   );
 }
 
+function SummarySkeleton() {
+  return (
+    <s-card>
+      <s-box padding="base">
+        <s-stack gap="base">
+          <s-text><strong>Loading summary...</strong></s-text>
+          <s-divider />
+          {[1, 2, 3, 4, 5].map((i) => (
+            <s-box key={i} paddingBlock="small">
+              <s-stack direction="inline" justifyContent="space-between">
+                <s-text color="subdued">Loading metric...</s-text>
+                <s-text color="subdued">—</s-text>
+              </s-stack>
+            </s-box>
+          ))}
+        </s-stack>
+      </s-box>
+    </s-card>
+  );
+}
+
 export default function Dashboard() {
   const { stats, upcomingJobs, recentlyCompleted, activeCampaignsList } = useLoaderData() as any;
   const navigate = useNavigate();
@@ -530,23 +545,6 @@ export default function Dashboard() {
 
   return (
     <s-page heading="Dashboard">
-      <style>{`
-        @keyframes shimmer {
-          0% { background-position: -200% 0; }
-          100% { background-position: 200% 0; }
-        }
-        .shimmer-box {
-          background: linear-gradient(90deg, var(--p-color-bg-surface-secondary) 25%, var(--p-color-bg-surface-hover) 50%, var(--p-color-bg-surface-secondary) 75%);
-          background-size: 200% 100%;
-          animation: shimmer 1.5s infinite linear;
-          border-radius: 6px;
-        }
-        .welcome-banner {
-          background: var(--p-color-bg-fill-brand-active);
-          border-radius: var(--p-border-radius-200);
-        }
-      `}</style>
-
       {/* ── Primary Action ── */}
       <s-button
         slot="primary-action"
@@ -557,101 +555,57 @@ export default function Dashboard() {
         New Campaign
       </s-button>
 
-      {/* ── Welcome Banner ── */}
-      <s-box paddingBlockEnd="large">
-        <s-card>
-          <div className="welcome-banner" style={{ padding: "var(--p-space-600)" }}>
-            <s-grid gridTemplateColumns="repeat(auto-fit, minmax(280px, 1fr))" gap="large" alignItems="center">
-              <s-stack gap="base">
-                <h2 style={{ fontSize: "20px", fontWeight: "600", margin: 0, color: "var(--p-color-text-inverse)" }}>
-                  🚀 Smart Discount Management
-                </h2>
-                <div>
-                  <span style={{ color: "var(--p-color-text-inverse-secondary)" }}>
-                    Automate and monitor multi-stage campaigns, track variant price adjustments, and schedule store promotions natively.
-                  </span>
-                </div>
-                <s-box paddingBlockStart="small">
-                  <s-button-group>
-                    <s-button variant="primary" onClick={() => navigate("/app/campaigns/new")}>
-                      Create Campaign
-                    </s-button>
-                    <s-button variant="secondary" onClick={() => navigate("/app/theme-settings")}>
-                      Configure Widget
-                    </s-button>
-                  </s-button-group>
-                </s-box>
-              </s-stack>
-            </s-grid>
-          </div>
-        </s-card>
-      </s-box>
-
       {/* ── KPI Metrics Grid ── */}
-      <s-box paddingBlockEnd="large">
+      <s-section>
         <Suspense fallback={<KPIsSkeleton />}>
           <Await resolve={stats}>
             {(resolvedStats) => <KPIsGrid stats={resolvedStats} />}
           </Await>
         </Suspense>
-      </s-box>
+      </s-section>
 
       {/* ── Main Content Area ── */}
-      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(320px, 1fr))" gap="large">
-        {/* ── LEFT COLUMN ── */}
-        <s-stack gap="large">
-          <Suspense fallback={<ActiveCampaignsSkeleton />}>
-            <Await resolve={activeCampaignsList}>
-              {(resolvedList) => (
-                <ActiveCampaignsSection
-                  campaigns={resolvedList}
-                  getCampaignProgress={getCampaignProgress}
-                  getActiveStage={getActiveStage}
-                  navigate={navigate}
-                />
-              )}
-            </Await>
-          </Suspense>
-        </s-stack>
+      <s-section>
+        <s-grid gridTemplateColumns="repeat(auto-fit, minmax(320px, 1fr))" gap="large">
+          {/* ── LEFT COLUMN ── */}
+          <s-stack gap="large">
+            <Suspense fallback={<ActiveCampaignsSkeleton />}>
+              <Await resolve={activeCampaignsList}>
+                {(resolvedList) => (
+                  <ActiveCampaignsSection
+                    campaigns={resolvedList}
+                    getCampaignProgress={getCampaignProgress}
+                    getActiveStage={getActiveStage}
+                    navigate={navigate}
+                  />
+                )}
+              </Await>
+            </Suspense>
+          </s-stack>
 
-        {/* ── RIGHT SIDEBAR ── */}
-        <s-stack gap="large">
-          <Suspense fallback={<ListSkeleton />}>
-            <Await resolve={upcomingJobs}>
-              {(resolvedJobs) => <UpcomingEventsSection upcomingJobs={resolvedJobs} />}
-            </Await>
-          </Suspense>
+          {/* ── RIGHT SIDEBAR ── */}
+          <s-stack gap="large">
+            <Suspense fallback={<ListSkeleton />}>
+              <Await resolve={upcomingJobs}>
+                {(resolvedJobs) => <UpcomingEventsSection upcomingJobs={resolvedJobs} />}
+              </Await>
+            </Suspense>
 
-          <Suspense fallback={<ListSkeleton />}>
-            <Await resolve={recentlyCompleted}>
-              {(resolvedCompleted) => <RecentlyCompletedSection recentlyCompleted={resolvedCompleted} />}
-            </Await>
-          </Suspense>
+            <Suspense fallback={<ListSkeleton />}>
+              <Await resolve={recentlyCompleted}>
+                {(resolvedCompleted) => <RecentlyCompletedSection recentlyCompleted={resolvedCompleted} />}
+              </Await>
+            </Suspense>
 
-          <Suspense fallback={
-            <s-card>
-              <s-box padding="base">
-                <s-stack gap="base">
-                  <div className="shimmer-box" style={{ width: "60%", height: "16px" }} />
-                  <s-divider />
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} style={{ marginTop: "8px" }}>
-                      <s-stack direction="inline" justifyContent="space-between">
-                        <div className="shimmer-box" style={{ width: "40%", height: "14px" }} />
-                        <div className="shimmer-box" style={{ width: "15%", height: "14px" }} />
-                      </s-stack>
-                    </div>
-                  ))}
-                </s-stack>
-              </s-box>
-            </s-card>
-          }>
-            <Await resolve={stats}>
-              {(resolvedStats) => <SummarySection stats={resolvedStats} />}
-            </Await>
-          </Suspense>
-        </s-stack>
-      </s-grid>
+            <Suspense fallback={<SummarySkeleton />}>
+              <Await resolve={stats}>
+                {(resolvedStats) => <SummarySection stats={resolvedStats} />}
+              </Await>
+            </Suspense>
+          </s-stack>
+        </s-grid>
+      </s-section>
+      
     </s-page>
   );
 }
