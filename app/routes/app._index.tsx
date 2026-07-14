@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate, Await } from "react-router";
 import { authenticate } from "../shopify.server";
@@ -16,7 +16,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     stats: (async () => {
-      const totalCampaigns = await prisma.campaign.count({ where: { shopId: shop.id } });
       const activeCampaigns = await prisma.campaign.count({ where: { shopId: shop.id, status: "ACTIVE" } });
       const scheduledCampaigns = await prisma.campaign.count({ where: { shopId: shop.id, status: "SCHEDULED" } });
       const completedCampaigns = await prisma.campaign.count({ where: { shopId: shop.id, status: "COMPLETED" } });
@@ -24,7 +23,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const priceUpdatesToday = await prisma.activityLog.count({
         where: { shopId: shop.id, event: "PRICE_UPDATED", createdAt: { gte: startOfToday } },
       });
-      return { totalCampaigns, activeCampaigns, scheduledCampaigns, completedCampaigns, productsAffected, priceUpdatesToday };
+      return { activeCampaigns, scheduledCampaigns, completedCampaigns, productsAffected, priceUpdatesToday };
     })(),
     upcomingJobs: (async () => {
       const jobs = await prisma.schedulerJob.findMany({
@@ -54,12 +53,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     recentlyCompleted: Promise.resolve(prisma.campaign.findMany({
       where: { shopId: shop.id, status: "COMPLETED" },
       orderBy: { updatedAt: "desc" },
-      take: 5,
     })),
     activeCampaignsList: Promise.resolve(prisma.campaign.findMany({
       where: { shopId: shop.id, status: "ACTIVE" },
       include: { stages: { orderBy: { stageNumber: "asc" } } },
-      take: 5,
     })),
   };
 };
@@ -178,6 +175,13 @@ function ActiveCampaignsSkeleton() {
 }
 
 function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage, navigate }: any) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(campaigns.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedCampaigns = campaigns.slice(startIndex, endIndex);
+
   return (
     <s-box >
       <s-stack gap="base">
@@ -218,7 +222,7 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
           </s-box>
         ) : (
           <s-stack gap="base">
-            {campaigns.map((campaign: any) => {
+            {paginatedCampaigns.map((campaign: any) => {
               const progress = getCampaignProgress(campaign);
               const activeStage = getActiveStage(campaign);
               const discountLabel =
@@ -243,6 +247,8 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
                   }
                 }
               }
+              const displayTitle = stageTitle.length > 20 ? stageTitle.substring(0, 20) + "..." : stageTitle;
+              const displaySubtitle = stageSubtitle.length > 20 ? stageSubtitle.substring(0, 20) + "..." : stageSubtitle;
 
               return (
                 <s-clickable
@@ -280,12 +286,12 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
                         {activeStage && (
                           <s-stack direction="block" gap="none" alignItems="end">
                             <s-badge tone="info">
-                              {stageTitle}
+                              {displayTitle}
                             </s-badge>
-                            {stageSubtitle && (
+                            {displaySubtitle && (
                               <s-box paddingBlockStart="small">
                                 <s-text color="subdued">
-                                  {stageSubtitle}
+                                  {displaySubtitle}
                                 </s-text>
                               </s-box>
                             )}
@@ -313,6 +319,26 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
                 </s-clickable>
               );
             })}
+
+            {totalPages > 1 && (
+              <s-box paddingBlockStart="base">
+                <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
+                  <s-button
+                    disabled={currentPage === 1 ? true : undefined}
+                    onClick={(e: any) => { e.preventDefault(); if (currentPage > 1) setCurrentPage(currentPage - 1); }}
+                  >
+                    Previous
+                  </s-button>
+                  <s-text>Page {currentPage} of {totalPages}</s-text>
+                  <s-button
+                    disabled={currentPage === totalPages ? true : undefined}
+                    onClick={(e: any) => { e.preventDefault(); if (currentPage < totalPages) setCurrentPage(currentPage + 1); }}
+                  >
+                    Next
+                  </s-button>
+                </s-stack>
+              </s-box>
+            )}
           </s-stack>
         )}
       </s-stack>
@@ -343,6 +369,13 @@ function ListSkeleton() {
 
 function UpcomingEventsSection({ upcomingJobs }: any) {
   const navigate = useNavigate();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(upcomingJobs.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedJobs = upcomingJobs.slice(startIndex, endIndex);
+
   return (
       <s-box>
         <s-stack gap="base">
@@ -374,7 +407,7 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
             </s-box>
           ) : (
             <s-stack gap="base">
-              {upcomingJobs.map((job: any) => {
+              {paginatedJobs.map((job: any) => {
                 const discountLabel = job.details
                   ? job.details.discountType === "PERCENTAGE"
                     ? `${job.details.discountValue}% OFF`
@@ -394,6 +427,8 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
                     // Fallback
                   }
                 }
+                const displayTitle = stageTitle.length > 20 ? stageTitle.substring(0, 20) + "..." : stageTitle;
+                const displaySubtitle = stageSubtitle.length > 20 ? stageSubtitle.substring(0, 20) + "..." : stageSubtitle;
 
                 return (
                   <s-clickable
@@ -427,12 +462,12 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
 
                           <s-stack direction="block" gap="none" alignItems="end">
                             <s-badge tone="info">
-                              {stageTitle}
+                              {displayTitle}
                             </s-badge>
-                            {stageSubtitle && (
+                            {displaySubtitle && (
                               <s-box paddingBlockStart="small">
                                 <s-text color="subdued">
-                                  {stageSubtitle}
+                                  {displaySubtitle}
                                 </s-text>
                               </s-box>
                             )}
@@ -451,16 +486,42 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
                   </s-clickable>
                 );
               })}
+
+              {totalPages > 1 && (
+                <s-box paddingBlockStart="base">
+                  <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
+                    <s-button
+                      disabled={currentPage === 1 ? true : undefined}
+                      onClick={(e: any) => { e.preventDefault(); if (currentPage > 1) setCurrentPage(currentPage - 1); }}
+                    >
+                      Previous
+                    </s-button>
+                    <s-text>Page {currentPage} of {totalPages}</s-text>
+                    <s-button
+                      disabled={currentPage === totalPages ? true : undefined}
+                      onClick={(e: any) => { e.preventDefault(); if (currentPage < totalPages) setCurrentPage(currentPage + 1); }}
+                    >
+                      Next
+                    </s-button>
+                  </s-stack>
+                </s-box>
+              )}
             </s-stack>
           )}
         </s-stack>
-        
       </s-box>
   );
 }
 
 function RecentlyCompletedSection({ recentlyCompleted }: any) {
   const navigate = useNavigate();
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+  const totalPages = Math.ceil(recentlyCompleted.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedCompleted = recentlyCompleted.slice(startIndex, endIndex);
+
   return (
       <s-box paddingBlock="base">
         <s-stack gap="base">
@@ -492,7 +553,7 @@ function RecentlyCompletedSection({ recentlyCompleted }: any) {
             </s-box>
           ) : (
             <s-stack gap="base">
-              {recentlyCompleted.map((campaign: any) => (
+              {paginatedCompleted.map((campaign: any) => (
                 <s-clickable
                   key={campaign.id}
                   onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
@@ -524,6 +585,26 @@ function RecentlyCompletedSection({ recentlyCompleted }: any) {
                   </s-box>
                 </s-clickable>
               ))}
+
+              {totalPages > 1 && (
+                <s-box paddingBlockStart="base">
+                  <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
+                    <s-button
+                      disabled={currentPage === 1 ? true : undefined}
+                      onClick={(e: any) => { e.preventDefault(); if (currentPage > 1) setCurrentPage(currentPage - 1); }}
+                    >
+                      Previous
+                    </s-button>
+                    <s-text>Page {currentPage} of {totalPages}</s-text>
+                    <s-button
+                      disabled={currentPage === totalPages ? true : undefined}
+                      onClick={(e: any) => { e.preventDefault(); if (currentPage < totalPages) setCurrentPage(currentPage + 1); }}
+                    >
+                      Next
+                    </s-button>
+                  </s-stack>
+                </s-box>
+              )}
             </s-stack>
           )}
         </s-stack>
