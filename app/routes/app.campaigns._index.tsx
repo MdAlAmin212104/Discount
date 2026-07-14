@@ -408,7 +408,8 @@ export default function CampaignsList() {
       ) : (
         <>
           {/* Tab Bar */}
-          <div style={{ borderBottom: "1px solid var(--p-border-subdued)", marginBottom: "16px", paddingBottom: "8px" }}>
+          <s-section>
+            <div style={{ borderBottom: "1px solid var(--p-border-subdued)"}}>
             <s-stack direction="inline" gap="small">
               {STATUS_TABS.map((tab, i) => (
                 <s-button
@@ -425,6 +426,8 @@ export default function CampaignsList() {
               ))}
             </s-stack>
           </div>
+          </s-section>
+          
 
           <s-section padding="none" accessibilityLabel="Campaigns table section">
             <s-table>

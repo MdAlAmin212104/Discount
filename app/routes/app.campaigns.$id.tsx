@@ -343,7 +343,7 @@ export default function CampaignDetail() {
       </s-button>
 
       {/* Tab Bar */}
-      <s-box paddingBlockStart="base" paddingBlockEnd="base">
+      <s-section>
         <s-stack direction="inline" gap="small" alignItems="center">
           {tabs.map((tab, i) => (
             <s-button key={tab} variant={activeTab === i ? "primary" : "tertiary"} onClick={() => setActiveTab(i)}>
@@ -352,16 +352,14 @@ export default function CampaignDetail() {
           ))}
           <StatusBadge status={campaign.status} />
         </s-stack>
-      </s-box>
-      <s-divider />
-      <s-box paddingBlockStart="base" />
+      </s-section>
 
       {/* TAB 1: Details */}
       {activeTab === 0 && (
         <s-section>
-          <s-stack direction="block" gap="base">
+          <s-stack direction="block">
           <s-card heading="Campaign Info">
-            <s-box padding="base">
+            <s-box>
               <s-grid gridTemplateColumns="repeat(12, 1fr)" gap="base">
                 <s-grid-item gridColumn="span 3">
                   <s-stack direction="block" gap="none">
@@ -390,7 +388,7 @@ export default function CampaignDetail() {
               </s-grid>
 
               {campaign.notes && (
-                <s-box paddingBlockStart="base">
+                <s-box>
                   <s-divider />
                   <s-box paddingBlockStart="base">
                     <s-stack direction="block" gap="none">
@@ -404,7 +402,7 @@ export default function CampaignDetail() {
           </s-card>
 
           <s-card heading="Campaign Stages">
-            <s-box padding="base">
+            <s-box paddingBlockStart="base">
               <s-table>
                 <s-table-header-row>
                   <s-table-header format="numeric">#</s-table-header>
@@ -457,7 +455,7 @@ export default function CampaignDetail() {
           </s-card>
 
           <s-card heading="Targeted Products">
-            <s-box padding="base">
+            <s-box paddingBlockStart="base">
               {resolvedProducts.length === 0 ? (
                 <s-text tone="neutral">No products targeted by this campaign.</s-text>
               ) : (
@@ -535,8 +533,8 @@ export default function CampaignDetail() {
 
       {/* TAB 2: Conflicts */}
       {activeTab === 1 && (
-        <s-card heading="Conflict Detection Log">
-          <s-box padding="base">
+        <s-section heading="Conflict Detection Log">
+          <s-box paddingBlockStart="base">
             <s-stack direction="block" gap="base">
               <s-text tone="neutral">
                 When multiple campaigns target the same variants, the system resolves by applying the best price.
@@ -631,7 +629,7 @@ export default function CampaignDetail() {
               )}
             </s-stack>
           </s-box>
-        </s-card>
+        </s-section>
       )}
 
       {/* Delete Confirmation Modal */}
