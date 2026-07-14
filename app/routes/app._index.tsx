@@ -34,11 +34,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const stageIds = jobs.map((job) => job.stageId);
       const relatedStages = await prisma.campaignStage.findMany({
         where: { id: { in: stageIds } },
-        include: { campaign: { select: { name: true } } },
+        include: { campaign: { select: { id: true, name: true, discountType: true } } },
       });
       const jobDetailsMap = relatedStages.reduce((acc: any, stage) => {
         acc[stage.id] = {
+          campaignId: stage.campaign.id,
           campaignName: stage.campaign.name,
+          discountType: stage.campaign.discountType,
           stageLabel: stage.label || `Stage ${stage.stageNumber}`,
           discountValue: stage.discountValue,
         };
@@ -340,8 +342,9 @@ function ListSkeleton() {
 }
 
 function UpcomingEventsSection({ upcomingJobs }: any) {
+  const navigate = useNavigate();
   return (
-      <s-box padding="base">
+      <s-box>
         <s-stack gap="base">
           <s-stack direction="inline" justifyContent="space-between" alignItems="center">
             <s-stack gap="small">
@@ -370,44 +373,96 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
               </s-stack>
             </s-box>
           ) : (
-            <s-stack gap="none">
-              {upcomingJobs.map((job: any) => (
-                <s-box
-                  key={job.id}
-                  paddingBlock="base"
-                  paddingInline="none"
-                >
-                  <s-stack gap="small">
-                    <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="small">
-                      <s-text>
-                        <strong>{job.details?.campaignName || "Discount Update"}</strong>
-                      </s-text>
-                      <s-badge tone="info">
-                        {new Date(job.scheduledAt).toLocaleTimeString(undefined, {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </s-badge>
-                    </s-stack>
-                    <s-text color="subdued">
-                      {job.details?.stageLabel || "Stage update"} ·{" "}
-                      {job.details
-                        ? `${job.details.discountValue}% off`
-                        : "Price adjustment"}
-                    </s-text>
-                  </s-stack>
-                </s-box>
-              ))}
+            <s-stack gap="base">
+              {upcomingJobs.map((job: any) => {
+                const discountLabel = job.details
+                  ? job.details.discountType === "PERCENTAGE"
+                    ? `${job.details.discountValue}% OFF`
+                    : `$${job.details.discountValue} OFF`
+                  : "Price adjustment";
+
+                let stageTitle = "Stage Update";
+                let stageSubtitle = job.details?.stageLabel || "";
+                if (job.details?.stageLabel) {
+                  try {
+                    const parsed = JSON.parse(job.details.stageLabel);
+                    if (parsed && typeof parsed === "object") {
+                      stageTitle = parsed.phaseTitle || "Stage Update";
+                      stageSubtitle = parsed.label || "";
+                    }
+                  } catch (e) {
+                    // Fallback
+                  }
+                }
+
+                return (
+                  <s-clickable
+                    key={job.id}
+                    onClick={() => {
+                      if (job.details?.campaignId) {
+                        navigate(`/app/campaigns/${job.details.campaignId}`);
+                      }
+                    }}
+                  >
+                    <s-box
+                      padding="base"
+                      background="subdued"
+                      borderRadius="base"
+                    >
+                      <s-stack gap="base">
+                        <s-stack direction="inline" justifyContent="space-between" alignItems="start" gap="base">
+                          <s-stack gap="small">
+                            <s-stack direction="inline" gap="small" alignItems="center">
+                              <s-text>
+                                <strong>{job.details?.campaignName || "Discount Update"}</strong>
+                              </s-text>
+                            </s-stack>
+                            <s-text color="subdued">
+                              {new Date(job.scheduledAt).toLocaleTimeString(undefined, {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </s-text>
+                          </s-stack>
+
+                          <s-stack direction="block" gap="none" alignItems="end">
+                            <s-badge tone="info">
+                              {stageTitle}
+                            </s-badge>
+                            {stageSubtitle && (
+                              <s-box paddingBlockStart="small">
+                                <s-text color="subdued">
+                                  {stageSubtitle}
+                                </s-text>
+                              </s-box>
+                            )}
+                          </s-stack>
+                        </s-stack>
+
+                        <s-stack gap="small">
+                          <s-stack direction="inline" justifyContent="space-between">
+                            <s-text>
+                              <strong>{discountLabel}</strong>
+                            </s-text>
+                          </s-stack>
+                        </s-stack>
+                      </s-stack>
+                    </s-box>
+                  </s-clickable>
+                );
+              })}
             </s-stack>
           )}
         </s-stack>
+        
       </s-box>
   );
 }
 
 function RecentlyCompletedSection({ recentlyCompleted }: any) {
+  const navigate = useNavigate();
   return (
-      <s-box padding="base">
+      <s-box paddingBlock="base">
         <s-stack gap="base">
           <s-stack direction="inline" justifyContent="space-between" alignItems="center">
             <s-stack gap="small">
@@ -436,102 +491,41 @@ function RecentlyCompletedSection({ recentlyCompleted }: any) {
               </s-stack>
             </s-box>
           ) : (
-            <s-stack gap="none">
+            <s-stack gap="base">
               {recentlyCompleted.map((campaign: any) => (
-                <s-box
+                <s-clickable
                   key={campaign.id}
-                  paddingBlock="base"
-                  paddingInline="none"
+                  onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
                 >
-                  <s-stack gap="small">
-                    <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="small">
-                      <s-text>
-                        <strong>{campaign.name}</strong>
-                      </s-text>
-                      <s-badge tone="success">
-                        ✓ Done
-                      </s-badge>
+                  <s-box
+                    padding="base"
+                    background="subdued"
+                    borderRadius="base"
+                  >
+                    <s-stack gap="base">
+                      <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base">
+                        <s-stack gap="small">
+                          <s-text>
+                            <strong>{campaign.name}</strong>
+                          </s-text>
+                          <s-text color="subdued">
+                            Ended {new Date(campaign.endDate).toLocaleDateString(undefined, {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </s-text>
+                        </s-stack>
+                        <s-badge tone="success">
+                          ✓ Done
+                        </s-badge>
+                      </s-stack>
                     </s-stack>
-                    <s-text color="subdued">
-                      Ended {new Date(campaign.endDate).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </s-text>
-                  </s-stack>
-                </s-box>
+                  </s-box>
+                </s-clickable>
               ))}
             </s-stack>
           )}
-        </s-stack>
-      </s-box>
-  );
-}
-
-function SummarySection({ stats }: { stats: any }) {
-  return (
-      <s-box padding="base">
-        <s-stack gap="base">
-          <s-heading>Campaign Summary</s-heading>
-
-          <s-divider />
-
-          <s-stack gap="base">
-            <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-              <s-text color="subdued">Total Campaigns</s-text>
-              <s-text>
-                <strong>{stats.totalCampaigns}</strong>
-              </s-text>
-            </s-stack>
-
-            <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-              <s-text color="subdued">Active</s-text>
-              <s-badge tone="success">
-                {stats.activeCampaigns}
-              </s-badge>
-            </s-stack>
-
-            <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-              <s-text color="subdued">Scheduled</s-text>
-              <s-badge tone="info">
-                {stats.scheduledCampaigns}
-              </s-badge>
-            </s-stack>
-
-            <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-              <s-text color="subdued">Completed</s-text>
-              <s-badge tone="neutral">
-                {stats.completedCampaigns}
-              </s-badge>
-            </s-stack>
-
-            <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-              <s-text color="subdued">Products Affected</s-text>
-              <s-text>
-                <strong>{stats.productsAffected}</strong>
-              </s-text>
-            </s-stack>
-          </s-stack>
-        </s-stack>
-      </s-box>
-  );
-}
-
-function SummarySkeleton() {
-  return (
-      <s-box padding="base">
-        <s-stack gap="base">
-          <s-text><strong>Loading summary...</strong></s-text>
-          <s-divider />
-          {[1, 2, 3, 4, 5].map((i) => (
-            <s-box key={i} paddingBlock="small">
-              <s-stack direction="inline" justifyContent="space-between">
-                <s-text color="subdued">Loading metric...</s-text>
-                <s-text color="subdued">—</s-text>
-              </s-stack>
-            </s-box>
-          ))}
         </s-stack>
       </s-box>
   );
@@ -582,7 +576,7 @@ export default function Dashboard() {
       <s-section>
         <s-grid gridTemplateColumns="repeat(auto-fit, minmax(320px, 1fr))" gap="small">
           {/* ── LEFT COLUMN ── */}
-          <s-stack gap="small">
+          <s-stack>
             <Suspense fallback={<ActiveCampaignsSkeleton />}>
               <Await resolve={activeCampaignsList}>
                 {(resolvedList) => (
@@ -598,7 +592,7 @@ export default function Dashboard() {
           </s-stack>
 
           {/* ── RIGHT SIDEBAR ── */}
-          <s-stack gap="small">
+          <s-stack>
             <Suspense fallback={<ListSkeleton />}>
               <Await resolve={upcomingJobs}>
                 {(resolvedJobs) => <UpcomingEventsSection upcomingJobs={resolvedJobs} />}
@@ -608,12 +602,6 @@ export default function Dashboard() {
             <Suspense fallback={<ListSkeleton />}>
               <Await resolve={recentlyCompleted}>
                 {(resolvedCompleted) => <RecentlyCompletedSection recentlyCompleted={resolvedCompleted} />}
-              </Await>
-            </Suspense>
-
-            <Suspense fallback={<SummarySkeleton />}>
-              <Await resolve={stats}>
-                {(resolvedStats) => <SummarySection stats={resolvedStats} />}
               </Await>
             </Suspense>
           </s-stack>
