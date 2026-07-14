@@ -71,28 +71,25 @@ function KPICard({ title, value, icon, subtext, badgeText, badgeTone }: {
   badgeTone?: "success" | "info" | "caution" | "neutral";
 }) {
   return (
-    <s-card>
-      <s-box padding="base">
-        <s-stack gap="base">
-          <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-            <s-text color="subdued">
-              <strong>{title}</strong>
-            </s-text>
-            {badgeText && <s-badge tone={badgeTone}>{badgeText}</s-badge>}
-          </s-stack>
-          <s-heading>
-            {value}
-          </s-heading>
-          <s-stack direction="inline" gap="small" alignItems="center">
-            <s-icon type={icon as any} size="small" />
-            <s-text color="subdued">
-              {subtext}
-            </s-text>
-          </s-stack>
+    <s-box padding="base" borderRadius="base" borderWidth="base">
+      <s-stack gap="base">
+        <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+          <s-text color="subdued">
+            <strong>{title}</strong>
+          </s-text>
+          {badgeText && <s-badge tone={badgeTone}>{badgeText}</s-badge>}
         </s-stack>
-      </s-box>
-    </s-card>
-
+        <s-heading>
+          {value}
+        </s-heading>
+        <s-stack direction="inline" gap="small" alignItems="center" justifyContent="start">
+          <s-icon type={icon as any} size="small" />
+          <s-text color="subdued">
+            {subtext}
+          </s-text>
+        </s-stack>
+      </s-stack>
+    </s-box>
   );
 }
 
@@ -120,7 +117,6 @@ function KPIsSkeleton() {
 
 function KPIsGrid({ stats }: { stats: any }) {
   return (
-    <s-section padding="base">
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="small">
         <KPICard
           title="Active Campaigns"
@@ -133,7 +129,7 @@ function KPIsGrid({ stats }: { stats: any }) {
         <KPICard
           title="Scheduled"
           value={stats.scheduledCampaigns}
-          icon="calendar"
+          icon="calendar-time"
           subtext={`${stats.scheduledCampaigns} upcoming`}
           badgeText="Upcoming"
           badgeTone="info"
@@ -149,19 +145,17 @@ function KPIsGrid({ stats }: { stats: any }) {
         <KPICard
           title="Today's Updates"
           value={stats.priceUpdatesToday}
-          icon="check-circle"
+          icon="price-list"
           subtext="price adjustments"
           badgeText="Today"
           badgeTone="caution"
         />
       </s-grid>
-    </s-section>
   );
 }
 
 function ActiveCampaignsSkeleton() {
   return (
-    <s-card>
       <s-box padding="base">
         <s-stack gap="base">
           <s-text><strong>Loading campaigns...</strong></s-text>
@@ -178,63 +172,82 @@ function ActiveCampaignsSkeleton() {
           ))}
         </s-stack>
       </s-box>
-    </s-card>
   );
 }
 
 function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage, navigate }: any) {
   return (
-    <s-card>
-      <s-box padding="base">
-        <s-stack gap="base">
-          <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-            <s-stack gap="small">
-              <s-heading>Active Campaigns</s-heading>
-              <s-text color="subdued">
-                Currently running promotions on your store
-              </s-text>
-            </s-stack>
-            <s-button variant="tertiary" onClick={() => navigate("/app/campaigns")}>
-              <s-stack direction="inline" gap="small" alignItems="center">
-                <s-text>View all</s-text>
-                <s-icon type="chevron-right" size="small" />
-              </s-stack>
-            </s-button>
+    <s-box >
+      <s-stack gap="base">
+        <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+          <s-stack gap="small">
+            <s-heading>Active Campaigns</s-heading>
+            <s-text color="subdued">
+              Currently running promotions on your store
+            </s-text>
           </s-stack>
+          <s-button variant="tertiary" onClick={() => navigate("/app/campaigns")}>
+            <s-stack direction="inline" gap="small" alignItems="center">
+              <s-text>View all</s-text>
+              <s-icon type="chevron-right" size="small" />
+            </s-stack>
+          </s-button>
+        </s-stack>
 
-          <s-divider />
+        <s-divider />
 
-          {campaigns.length === 0 ? (
-            <s-box paddingBlock="large" paddingInline="base">
-              <s-empty-state
-                heading="No active campaigns"
-                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+        {campaigns.length === 0 ? (
+          <s-box paddingBlock="large" paddingInline="base">
+            <s-empty-state
+              heading="No active campaigns"
+              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+            >
+              <s-text color="subdued">
+                Start your first campaign to boost sales with automated discounts.
+              </s-text>
+              <s-button
+                slot="action"
+                variant="primary"
+                onClick={() => navigate("/app/campaigns/new")}
               >
-                <s-text color="subdued">
-                  Start your first campaign to boost sales with automated discounts.
-                </s-text>
-                <s-button
-                  slot="action"
-                  variant="primary"
-                  onClick={() => navigate("/app/campaigns/new")}
-                >
-                  Create Campaign
-                </s-button>
-              </s-empty-state>
-            </s-box>
-          ) : (
-            <s-stack gap="base">
-              {campaigns.map((campaign: any) => {
-                const progress = getCampaignProgress(campaign);
-                const activeStage = getActiveStage(campaign);
-                const discountLabel =
-                  campaign.discountType === "PERCENTAGE"
-                    ? `${activeStage?.discountValue || 0}% OFF`
-                    : `$${activeStage?.discountValue || 0} OFF`;
+                Create Campaign
+              </s-button>
+            </s-empty-state>
+          </s-box>
+        ) : (
+          <s-stack gap="base">
+            {campaigns.map((campaign: any) => {
+              const progress = getCampaignProgress(campaign);
+              const activeStage = getActiveStage(campaign);
+              const discountLabel =
+                campaign.discountType === "PERCENTAGE"
+                  ? `${activeStage?.discountValue || 0}% OFF`
+                  : `$${activeStage?.discountValue || 0} OFF`;
 
-                return (
+              let stageTitle = "";
+              let stageSubtitle = "";
+              if (activeStage) {
+                stageTitle = `Stage ${activeStage.stageNumber}`;
+                stageSubtitle = activeStage.label || "";
+                if (activeStage.label) {
+                  try {
+                    const parsed = JSON.parse(activeStage.label);
+                    if (parsed && typeof parsed === "object") {
+                      stageTitle = parsed.phaseTitle || `Stage ${activeStage.stageNumber}`;
+                      stageSubtitle = parsed.label || "";
+                    }
+                  } catch (e) {
+                    // Fallback to defaults
+                  }
+                }
+              }
+
+              return (
+                <s-clickable
+                  key={campaign.id}
+                  onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
+                >
                   <s-box
-                    key={campaign.id}
                     padding="base"
                     background="subdued"
                     borderRadius="base"
@@ -263,9 +276,18 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
                           </s-text>
                         </s-stack>
                         {activeStage && (
-                          <s-badge tone="info">
-                            {activeStage.label || `Stage ${activeStage.stageNumber}`}
-                          </s-badge>
+                          <s-stack direction="block" gap="none" alignItems="end">
+                            <s-badge tone="info">
+                              {stageTitle}
+                            </s-badge>
+                            {stageSubtitle && (
+                              <s-box paddingBlockStart="small">
+                                <s-text color="subdued">
+                                  {stageSubtitle}
+                                </s-text>
+                              </s-box>
+                            )}
+                          </s-stack>
                         )}
                       </s-stack>
 
@@ -286,13 +308,13 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
                       </s-stack>
                     </s-stack>
                   </s-box>
-                );
-              })}
-            </s-stack>
-          )}
-        </s-stack>
-      </s-box>
-    </s-card>
+                </s-clickable>
+              );
+            })}
+          </s-stack>
+        )}
+      </s-stack>
+    </s-box>
   );
 }
 
@@ -319,7 +341,6 @@ function ListSkeleton() {
 
 function UpcomingEventsSection({ upcomingJobs }: any) {
   return (
-    <s-card>
       <s-box padding="base">
         <s-stack gap="base">
           <s-stack direction="inline" justifyContent="space-between" alignItems="center">
@@ -381,13 +402,11 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
           )}
         </s-stack>
       </s-box>
-    </s-card>
   );
 }
 
 function RecentlyCompletedSection({ recentlyCompleted }: any) {
   return (
-    <s-card>
       <s-box padding="base">
         <s-stack gap="base">
           <s-stack direction="inline" justifyContent="space-between" alignItems="center">
@@ -447,13 +466,11 @@ function RecentlyCompletedSection({ recentlyCompleted }: any) {
           )}
         </s-stack>
       </s-box>
-    </s-card>
   );
 }
 
 function SummarySection({ stats }: { stats: any }) {
   return (
-    <s-card>
       <s-box padding="base">
         <s-stack gap="base">
           <s-heading>Campaign Summary</s-heading>
@@ -498,13 +515,11 @@ function SummarySection({ stats }: { stats: any }) {
           </s-stack>
         </s-stack>
       </s-box>
-    </s-card>
   );
 }
 
 function SummarySkeleton() {
   return (
-    <s-card>
       <s-box padding="base">
         <s-stack gap="base">
           <s-text><strong>Loading summary...</strong></s-text>
@@ -519,7 +534,6 @@ function SummarySkeleton() {
           ))}
         </s-stack>
       </s-box>
-    </s-card>
   );
 }
 
@@ -566,9 +580,9 @@ export default function Dashboard() {
 
       {/* ── Main Content Area ── */}
       <s-section>
-        <s-grid gridTemplateColumns="repeat(auto-fit, minmax(320px, 1fr))" gap="large">
+        <s-grid gridTemplateColumns="repeat(auto-fit, minmax(320px, 1fr))" gap="small">
           {/* ── LEFT COLUMN ── */}
-          <s-stack gap="large">
+          <s-stack gap="small">
             <Suspense fallback={<ActiveCampaignsSkeleton />}>
               <Await resolve={activeCampaignsList}>
                 {(resolvedList) => (
@@ -584,7 +598,7 @@ export default function Dashboard() {
           </s-stack>
 
           {/* ── RIGHT SIDEBAR ── */}
-          <s-stack gap="large">
+          <s-stack gap="small">
             <Suspense fallback={<ListSkeleton />}>
               <Await resolve={upcomingJobs}>
                 {(resolvedJobs) => <UpcomingEventsSection upcomingJobs={resolvedJobs} />}
