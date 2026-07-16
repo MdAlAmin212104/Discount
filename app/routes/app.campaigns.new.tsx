@@ -524,6 +524,113 @@ export default function AdditionalPage() {
 
   const [phases, setPhases] = useState<Phase[]>([createEmptyPhase(1, storeTimezone)]);
 
+  const getCampaignInitialValues = useCallback(() => {
+    const ld = loaderData as any;
+    if (!ld?.campaign) {
+      return {
+        name: "",
+        discountType: "percentage" as const,
+        productOption: "products" as const,
+        selectedProducts: [],
+        selectedCollections: [],
+        collectionProductsMap: {},
+        selectedTags: [],
+        tagProducts: [],
+        phases: [createEmptyPhase(1, storeTimezone)],
+      };
+    }
+    const c = ld.campaign;
+    let dt: "percentage" | "fixed" | "fixed_discount" = "percentage";
+    if (c.discountType === "PERCENTAGE") {
+      dt = "percentage";
+    } else if (c.discountType === "FIX_AMOUNT") {
+      dt = "fixed";
+    } else if (c.discountType === "FIXED_DISCOUNT") {
+      dt = "fixed_discount";
+    }
+
+    const firstProduct = c.products[0];
+    const opt: "products" | "collections" | "tags" = firstProduct?.targetType === "PRODUCT" ? "products"
+      : firstProduct?.targetType === "COLLECTION" ? "collections" : "tags";
+
+    let selProds = [];
+    let selCols = [];
+    let selTags = [];
+    let tProds = [];
+    let colProdsMap = {};
+
+    if (opt === "products") selProds = ld.resolvedProducts || [];
+    else if (opt === "collections") {
+      selCols = ld.loadedCollections || [];
+      colProdsMap = ld.resolvedCollectionsMap || {};
+    } else {
+      selTags = firstProduct?.targetValue?.split(",") || [];
+      tProds = ld.resolvedProducts || [];
+    }
+
+    let stagePhases = [createEmptyPhase(1, storeTimezone)];
+    if (c.stages?.length) {
+      const fmtDate = (d: Date) => new Intl.DateTimeFormat("en-CA", {
+        timeZone: storeTimezone, year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(d);
+      const fmtTime = (d: Date) => {
+        const parts = new Intl.DateTimeFormat("en-US", {
+          timeZone: storeTimezone, hour: "2-digit", minute: "2-digit", hour12: false,
+        }).formatToParts(d);
+        const h = parseInt(parts.find(p => p.type === "hour")?.value || "0");
+        const m = parseInt(parts.find(p => p.type === "minute")?.value || "0");
+        const total = Math.round((h * 60 + m) / 30) * 30;
+        const rh = Math.floor(total / 60) % 24;
+        const rm = total % 60;
+        return `${String(rh).padStart(2, "0")}:${String(rm).padStart(2, "0")}`;
+      };
+      stagePhases = c.stages.map((stage: any) => {
+        let labelObj: any = {};
+        try { labelObj = JSON.parse(stage.label || "{}"); } catch { }
+        return {
+          phaseTitle: labelObj.phaseTitle || `Stage ${stage.stageNumber}`,
+          badgeLabel: labelObj.label || stage.label || "",
+          discountValue: stage.discountValue.toString(),
+          startDate: fmtDate(new Date(stage.startDate)),
+          startTime: fmtTime(new Date(stage.startDate)),
+          endDate: fmtDate(new Date(stage.endDate)),
+          endTime: fmtTime(new Date(stage.endDate)),
+          isSaved: true,
+        };
+      });
+    }
+
+    return {
+      name: c.name,
+      discountType: dt,
+      productOption: opt,
+      selectedProducts: selProds,
+      selectedCollections: selCols,
+      collectionProductsMap: colProdsMap,
+      selectedTags: selTags,
+      tagProducts: tProds,
+      phases: stagePhases,
+    };
+  }, [loaderData, storeTimezone]);
+
+  const initialValuesRef = useRef<any>(null);
+
+  // ── Edit mode init ──
+  useEffect(() => {
+    const initial = getCampaignInitialValues();
+    initialValuesRef.current = initial;
+
+    setName(initial.name);
+    setDiscountType(initial.discountType);
+    setProductOption(initial.productOption);
+    setSelectedProducts(initial.selectedProducts);
+    setSelectedCollections(initial.selectedCollections);
+    setCollectionProductsMap(initial.collectionProductsMap);
+    setSelectedTags(initial.selectedTags);
+    setTagProducts(initial.tagProducts);
+    setPhases(initial.phases);
+  }, [getCampaignInitialValues]);
+
   // ── Refs for s-* web component listeners ──
   const discountChoiceRef = useRef<any>(null);
   const productChoiceRef = useRef<any>(null);
@@ -601,68 +708,6 @@ export default function AdditionalPage() {
       }
     });
   }, [discountType, currency]);
-
-  // ── Edit mode init ──
-  useEffect(() => {
-    const ld = loaderData as any;
-    if (!ld?.campaign) return;
-    const c = ld.campaign;
-    setName(c.name);
-    let dt: "percentage" | "fixed" | "fixed_discount" = "percentage";
-    if (c.discountType === "PERCENTAGE") {
-      dt = "percentage";
-    } else if (c.discountType === "FIX_AMOUNT") {
-      dt = "fixed";
-    } else if (c.discountType === "FIXED_DISCOUNT") {
-      dt = "fixed_discount";
-    }
-    setDiscountType(dt);
-
-    const firstProduct = c.products[0];
-    const opt = firstProduct?.targetType === "PRODUCT" ? "products"
-      : firstProduct?.targetType === "COLLECTION" ? "collections" : "tags";
-    setProductOption(opt);
-
-    if (opt === "products") setSelectedProducts(ld.resolvedProducts || []);
-    else if (opt === "collections") {
-      setSelectedCollections(ld.loadedCollections || []);
-      setCollectionProductsMap(ld.resolvedCollectionsMap || {});
-    } else {
-      setSelectedTags(firstProduct?.targetValue?.split(",") || []);
-      setTagProducts(ld.resolvedProducts || []);
-    }
-
-    if (c.stages?.length) {
-      const fmtDate = (d: Date) => new Intl.DateTimeFormat("en-CA", {
-        timeZone: storeTimezone, year: "numeric", month: "2-digit", day: "2-digit",
-      }).format(d);
-      const fmtTime = (d: Date) => {
-        const parts = new Intl.DateTimeFormat("en-US", {
-          timeZone: storeTimezone, hour: "2-digit", minute: "2-digit", hour12: false,
-        }).formatToParts(d);
-        const h = parseInt(parts.find(p => p.type === "hour")?.value || "0");
-        const m = parseInt(parts.find(p => p.type === "minute")?.value || "0");
-        const total = Math.round((h * 60 + m) / 30) * 30;
-        const rh = Math.floor(total / 60) % 24;
-        const rm = total % 60;
-        return `${String(rh).padStart(2, "0")}:${String(rm).padStart(2, "0")}`;
-      };
-      setPhases(c.stages.map((stage: any) => {
-        let labelObj: any = {};
-        try { labelObj = JSON.parse(stage.label || "{}"); } catch { }
-        return {
-          phaseTitle: labelObj.phaseTitle || `Stage ${stage.stageNumber}`,
-          badgeLabel: labelObj.label || stage.label || "",
-          discountValue: stage.discountValue.toString(),
-          startDate: fmtDate(new Date(stage.startDate)),
-          startTime: fmtTime(new Date(stage.startDate)),
-          endDate: fmtDate(new Date(stage.endDate)),
-          endTime: fmtTime(new Date(stage.endDate)),
-          isSaved: true,
-        };
-      }));
-    }
-  }, [loaderData]);
 
   // ── Fetcher: collection/tag resolution ──
   useEffect(() => {
@@ -875,6 +920,23 @@ export default function AdditionalPage() {
     submit(f, { method: "POST" });
   };
 
+  const handleDiscard = (e: any) => {
+    e.preventDefault();
+    if (initialValuesRef.current) {
+      const initial = initialValuesRef.current;
+      setName(initial.name);
+      setDiscountType(initial.discountType);
+      setProductOption(initial.productOption);
+      setSelectedProducts(initial.selectedProducts);
+      setSelectedCollections(initial.selectedCollections);
+      setCollectionProductsMap(initial.collectionProductsMap);
+      setSelectedTags(initial.selectedTags);
+      setTagProducts(initial.tagProducts);
+      setPhases(initial.phases);
+      shopify.toast.show("Changes discarded");
+    }
+  };
+
   const getCampaignStatus = () => {
     if (!name.trim()) return "Draft";
     const now = new Date();
@@ -899,10 +961,9 @@ export default function AdditionalPage() {
   const discountMax = discountType === "percentage" ? 100 : undefined;
 
   return (
-    <s-page heading={campaignId ? "Edit Campaign" : "Create Campaign"}>
-      <s-button slot="primary-action" variant="primary" onClick={handleSaveCampaign} disabled={!name.trim()} loading={isSaving ? true : undefined}>
-        Save Campaign
-      </s-button>
+    <form data-save-bar data-discard-confirmation onSubmit={handleSaveCampaign} onReset={handleDiscard}>
+      <s-page heading={campaignId ? "Edit Campaign" : "Create Campaign"}>
+        <s-link slot="breadcrumb-actions" onClick={() => navigate(campaignId ? `/app/campaigns/${campaignId}` : "/app/campaigns")}>Campaigns</s-link>
       {campaignId && campaign && (
         <>
           {(campaign.status === "ACTIVE" || campaign.status === "SCHEDULED") && (
@@ -1017,26 +1078,29 @@ export default function AdditionalPage() {
           {/* Tags: input field for adding tags */}
           {productOption === "tags" && (
             <s-box paddingBlockEnd="base">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleAddTag(e);
-                }}
-              >
-                <s-grid gridTemplateColumns="1fr auto" gap="small" alignItems="end">
-                  <s-stack gap="small">
-                    <s-text-field
-                      label="Add Product Tag"
-                      placeholder="e.g. summer-sale, new-arrival"
-                      value={tagInput}
-                      onChange={(e: any) => setTagInput(e.currentTarget.value)}
-                    />
-                  </s-stack>
-                  <s-button onClick={handleAddTag} loading={tagLoading ? true : undefined}>
-                    Add Tag
-                  </s-button>
-                </s-grid>
-              </form>
+              <s-grid gridTemplateColumns="1fr auto" gap="small" alignItems="end">
+                <s-stack gap="small">
+                  <s-text-field
+                    label="Add Product Tag"
+                    placeholder="e.g. summer-sale, new-arrival"
+                    value={tagInput}
+                    onChange={(e: any) => setTagInput(e.currentTarget.value)}
+                    ref={(el: any) => {
+                      if (el) {
+                        el.onkeydown = (e: any) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddTag(e);
+                          }
+                        };
+                      }
+                    }}
+                  />
+                </s-stack>
+                <s-button onClick={handleAddTag} loading={tagLoading ? true : undefined}>
+                  Add Tag
+                </s-button>
+              </s-grid>
             </s-box>
           )}
 
@@ -1376,5 +1440,6 @@ export default function AdditionalPage() {
         </s-card>
       </s-section>
     </s-page>
+  </form>
   );
 }

@@ -323,34 +323,36 @@ export default function CampaignDetail() {
   return (
     <s-page heading={campaign.name}>
       <s-link slot="breadcrumb-actions" onClick={() => navigate("/app/campaigns")}>Campaigns</s-link>
-      <s-button
-        slot="secondary-actions"
-        variant="primary"
-        onClick={() => navigate(`/app/campaigns/new?id=${campaign.id}`)}
-        icon="edit"
-      >
-        Edit Campaign
-      </s-button>
-      <s-button
-        slot="secondary-actions"
-        variant="secondary"
-        tone="critical"
-        icon="delete"
-        commandFor="delete-modal"
-        command="--show"
-      >
-        Delete
-      </s-button>
 
       {/* Tab Bar */}
       <s-section>
-        <s-stack direction="inline" gap="small" alignItems="center">
-          {tabs.map((tab, i) => (
-            <s-button key={tab} variant={activeTab === i ? "primary" : "tertiary"} onClick={() => setActiveTab(i)}>
-              {tab}
+        <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+          <s-stack direction="inline" gap="small" alignItems="center">
+            {tabs.map((tab, i) => (
+              <s-button key={tab} variant={activeTab === i ? "primary" : "tertiary"} onClick={() => setActiveTab(i)}>
+                {tab}
+              </s-button>
+            ))}
+            <StatusBadge status={campaign.status} />
+          </s-stack>
+          <s-stack direction="inline" gap="small" alignItems="center">
+            <s-button
+              variant="primary"
+              onClick={() => navigate(`/app/campaigns/new?id=${campaign.id}`)}
+              icon="edit"
+            >
+              Edit Campaign
             </s-button>
-          ))}
-          <StatusBadge status={campaign.status} />
+            <s-button
+              variant="secondary"
+              tone="critical"
+              icon="delete"
+              commandFor="delete-modal"
+              command="--show"
+            >
+              Delete
+            </s-button>
+          </s-stack>
         </s-stack>
       </s-section>
 
