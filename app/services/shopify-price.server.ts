@@ -164,6 +164,45 @@ export async function fetchVariantsForTargets(
             }
           }
         }
+      } else if (target.targetType === "VARIANT") {
+        // targetValue is variant GID (or comma-separated variant GIDs)
+        const variantIds = target.targetValue.split(",");
+        for (const id of variantIds) {
+          if (!id.trim()) continue;
+          const cleanId = id.trim().startsWith("gid://") ? id.trim() : `gid://shopify/ProductVariant/${id.trim()}`;
+          const response = await admin.graphql(
+            `#graphql
+            query getVariantDetails($id: ID!) {
+              productVariant(id: $id) {
+                id
+                price
+                compareAtPrice
+                product {
+                  id
+                  title
+                  handle
+                  featuredImage {
+                    url
+                  }
+                }
+              }
+            }`,
+            { variables: { id: cleanId } }
+          );
+          const resJson = await response.json();
+          const variant = resJson.data?.productVariant;
+          if (variant) {
+            resolvedVariants.set(variant.id, {
+              variantId: variant.id,
+              price: parseFloat(variant.price || "0"),
+              compareAtPrice: variant.compareAtPrice ? parseFloat(variant.compareAtPrice) : null,
+              productId: variant.product.id,
+              productTitle: variant.product.title,
+              productHandle: variant.product.handle,
+              productImage: variant.product.featuredImage?.url || "",
+            });
+          }
+        }
       }
     } catch (error) {
       console.error(`Error fetching variants for target type ${target.targetType}:`, error);

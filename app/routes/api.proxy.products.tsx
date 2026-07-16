@@ -54,15 +54,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ? productIdParam
         : `gid://shopify/Product/${productIdParam}`;
 
-      // Query variants for this product from Shopify GraphQL
+      // Also accept an optional specific variantId
+      const variantIdParam = url.searchParams.get("variantId");
+      const normalizedVariantId = variantIdParam
+        ? (variantIdParam.startsWith("gid://") ? variantIdParam : `gid://shopify/ProductVariant/${variantIdParam}`)
+        : null;
+
+      // Query all variant IDs for this product
       const response = await admin.graphql(
         `#graphql
         query getProductVariants($id: ID!) {
           product(id: $id) {
             variants(first: 100) {
-              nodes {
-                id
-              }
+              nodes { id }
             }
           }
         }`,
@@ -73,6 +77,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const variantIds = variantNodes.map((node: any) => node.id);
 
       if (variantIds.length > 0) {
+        // Look for an active snapshot matching any variant of this product
         const activeSnapshot = await prisma.variantPriceSnapshot.findFirst({
           where: {
             shopId: shop.id,
@@ -83,12 +88,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         });
 
         if (activeSnapshot) {
-          campaign = await prisma.campaign.findFirst({
+          const candidateCampaign = await prisma.campaign.findFirst({
             where: { id: activeSnapshot.campaignId, shopId: shop.id },
             include: {
               stages: { orderBy: { stageNumber: "asc" } },
+              products: true,
             },
           });
+
+          if (candidateCampaign) {
+            const isVariantTargeted = candidateCampaign.products.some(
+              (p: any) => p.targetType === "VARIANT"
+            );
+
+            if (isVariantTargeted && normalizedVariantId) {
+              // For VARIANT-targeted campaigns: only show timer if this exact
+              // variant has a price snapshot (i.e. it was explicitly selected)
+              const variantSnapshot = await prisma.variantPriceSnapshot.findFirst({
+                where: {
+                  shopId: shop.id,
+                  campaignId: candidateCampaign.id,
+                  variantId: normalizedVariantId,
+                },
+              });
+              if (variantSnapshot) {
+                campaign = candidateCampaign;
+              }
+              // else: this variant is NOT part of the campaign — no timer
+            } else if (isVariantTargeted && !normalizedVariantId) {
+              // No variantId provided; default to hiding (can't confirm eligibility)
+              campaign = null;
+            } else {
+              // Product/collection/tag targeted — any variant of the product qualifies
+              campaign = candidateCampaign;
+            }
+          }
         }
       }
     } else if (campaignIdParam && campaignIdParam !== "active") {

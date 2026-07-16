@@ -179,6 +179,7 @@ enum TargetType {
   PRODUCT
   COLLECTION
   TAG
+  VARIANT
 }
 
 enum StageStatus {

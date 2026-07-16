@@ -10,7 +10,39 @@
 
       if (!shop || !productId) return;
 
-      const fetchUrl = `/apps/discount-showcase/products?shop=${shop}&productId=${productId}`;
+      // Initial fetch with the default selected variant
+      let currentVariantId = container.getAttribute("data-variant-id") || "";
+      fetchAndRender(container, shop, productId, currentVariantId, moneyFormat);
+
+      // Re-fetch when shopper changes the variant selector
+      // Shopify themes dispatch a native 'change' on select[name="id"] or
+      // a custom 'variant:changed' / 'variantChange' event
+      function onVariantChange(e) {
+        let variantId = "";
+        if (e.detail && e.detail.variant && e.detail.variant.id) {
+          variantId = String(e.detail.variant.id);
+        } else if (e.target && e.target.name === "id") {
+          variantId = e.target.value;
+        }
+        if (variantId && variantId !== currentVariantId) {
+          currentVariantId = variantId;
+          container.style.display = "none";
+          container.innerHTML = "";
+          fetchAndRender(container, shop, productId, currentVariantId, moneyFormat);
+        }
+      }
+
+      document.addEventListener("variant:changed", onVariantChange);
+      document.addEventListener("variantChange", onVariantChange);
+      // Dawn / Debut themes use a <select name="id"> change
+      document.querySelectorAll('select[name="id"], input[name="id"]').forEach(el => {
+        el.addEventListener("change", onVariantChange);
+      });
+    });
+
+    function fetchAndRender(container, shop, productId, variantId, moneyFormat) {
+      let fetchUrl = `/apps/discount-showcase/products?shop=${shop}&productId=${productId}`;
+      if (variantId) fetchUrl += `&variantId=${variantId}`;
 
       fetch(fetchUrl)
         .then(res => res.json())
@@ -26,7 +58,7 @@
           console.error("Error loading discount timer:", err);
           container.style.display = "none";
         });
-    });
+    }
 
     function formatMoney(amountVal, formatStr) {
       let amount = parseFloat(amountVal).toFixed(2);

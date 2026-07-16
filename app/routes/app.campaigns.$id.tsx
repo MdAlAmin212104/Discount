@@ -60,6 +60,36 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             }`, { variables: { query: `tag:${tagVal}` } });
           resolvedProducts.push(...((await res.json()).data?.products?.nodes || []));
         }
+      } else if ((prodTarget.targetType as string) === "VARIANT") {
+        const ids = prodTarget.targetValue.split(",").filter(Boolean);
+        if (ids.length) {
+          const res = await admin.graphql(`#graphql
+            query getVariantsDetails($ids: [ID!]!) {
+              nodes(ids: $ids) {
+                ... on ProductVariant {
+                  id
+                  title
+                  product {
+                    id
+                    title
+                    handle
+                    featuredImage { url }
+                    tags
+                  }
+                }
+              }
+            }`, { variables: { ids } });
+          const json = await res.json();
+          const nodes = (json.data?.nodes || []).filter(Boolean);
+          const mappedVariants = nodes.map((v: any) => ({
+            id: v.id,
+            title: `${v.product?.title || "Product"} - ${v.title}`,
+            handle: v.product?.handle || "",
+            featuredImage: { url: v.product?.featuredImage?.url || "" },
+            tags: v.product?.tags || [],
+          }));
+          resolvedProducts.push(...mappedVariants);
+        }
       }
     }
   } catch (err) {

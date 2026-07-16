@@ -2,6 +2,7 @@
   class="discount-timer-container" 
   data-shop="{{ shop.permanent_domain }}"
   data-product-id="{{ product.id }}"
+  data-variant-id="{{ product.selected_or_first_available_variant.id }}"
   data-product-price="{{ product.price | divided_by: 100.0 }}"
   data-money-format="{{ shop.money_format | escape }}"
   style="display: none;"

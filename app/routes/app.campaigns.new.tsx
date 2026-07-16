@@ -247,18 +247,43 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     let resolvedProducts: any[] = [];
     let loadedCollections: any[] = [];
+    let loadedVariants: any[] = [];
     let resolvedCollectionsMap: Record<string, any[]> = {};
 
     for (const prodTarget of campaign.products) {
       if (prodTarget.targetType === "PRODUCT") {
-        const ids = prodTarget.targetValue.split(",").filter(Boolean);
-        if (ids.length) {
+        // For each product, fetch all its variants so the UI can show variant-level selection
+        const productIds = prodTarget.targetValue.split(",").filter(Boolean);
+        if (productIds.length) {
           const res = await admin.graphql(`#graphql
-            query getProductsDetails($ids: [ID!]!) {
-              nodes(ids: $ids) { ... on Product { id title handle featuredImage { url } tags } }
-            }`, { variables: { ids } });
+            query getProductsWithVariants($ids: [ID!]!) {
+              nodes(ids: $ids) {
+                ... on Product {
+                  id title handle
+                  featuredImage { url }
+                  variants(first: 100) {
+                    nodes { id title price }
+                  }
+                }
+              }
+            }`, { variables: { ids: productIds } });
           const json = await res.json();
-          resolvedProducts.push(...(json.data?.nodes || []).filter(Boolean));
+          const products = (json.data?.nodes || []).filter(Boolean);
+          resolvedProducts.push(...products);
+          // Expand to individual variants for the variant-based display
+          for (const product of products) {
+            for (const variant of (product.variants?.nodes || [])) {
+              loadedVariants.push({
+                id: variant.id,
+                title: variant.title,
+                price: parseFloat(variant.price || "0"),
+                productTitle: product.title,
+                productHandle: product.handle,
+                productId: product.id,
+                featuredImage: { url: product.featuredImage?.url || "" },
+              });
+            }
+          }
         }
       } else if (prodTarget.targetType === "COLLECTION") {
         const ids = prodTarget.targetValue.split(",").filter(Boolean);
@@ -289,6 +314,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             }`, { variables: { query: `tag:${tagVal}` } });
           resolvedProducts.push(...((await res.json()).data?.products?.nodes || []));
         }
+      } else if ((prodTarget.targetType as string) === "VARIANT") {
+        const ids = prodTarget.targetValue.split(",").filter(Boolean);
+        if (ids.length) {
+          const res = await admin.graphql(`#graphql
+            query getVariantsDetails($ids: [ID!]!) {
+              nodes(ids: $ids) {
+                ... on ProductVariant {
+                  id
+                  title
+                  price
+                  product {
+                    id
+                    title
+                    handle
+                    featuredImage { url }
+                  }
+                }
+              }
+            }`, { variables: { ids } });
+          const json = await res.json();
+          const nodes = (json.data?.nodes || []).filter(Boolean);
+          const loadedVariants = nodes.map((v: any) => ({
+            id: v.id,
+            title: v.title,
+            price: parseFloat(v.price || "0"),
+            productTitle: v.product?.title || "",
+            productHandle: v.product?.handle || "",
+            productId: v.product?.id || "",
+            featuredImage: { url: v.product?.featuredImage?.url || "" },
+          }));
+          return { campaign, resolvedProducts: [], loadedCollections: [], resolvedCollectionsMap: {}, loadedVariants, shopSettings };
+        }
       }
     }
 
@@ -298,10 +355,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       seen.add(p.id);
       return true;
     });
-    return { campaign, resolvedProducts: deduplicatedProducts, loadedCollections, resolvedCollectionsMap, shopSettings };
+    return { campaign, resolvedProducts: deduplicatedProducts, loadedCollections, resolvedCollectionsMap, loadedVariants: [], shopSettings };
   }
 
-  return { campaign: null, resolvedProducts: [], loadedCollections: [], resolvedCollectionsMap: {}, shopSettings };
+  return { campaign: null, resolvedProducts: [], loadedCollections: [], resolvedCollectionsMap: {}, loadedVariants: [], shopSettings };
 };
 
 // ── Helper: resolve products for a comma-separated list of tags ──
@@ -515,6 +572,7 @@ export default function AdditionalPage() {
 
   const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
   const [selectedCollections, setSelectedCollections] = useState<any[]>([]);
+  const [selectedVariants, setSelectedVariants] = useState<any[]>([]);
   const [collectionProductsMap, setCollectionProductsMap] = useState<Record<string, any[]>>({});
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagProducts, setTagProducts] = useState<any[]>([]);
@@ -535,6 +593,7 @@ export default function AdditionalPage() {
         productOption: "products" as const,
         selectedProducts: [],
         selectedCollections: [],
+        selectedVariants: [],
         collectionProductsMap: {},
         selectedTags: [],
         tagProducts: [],
@@ -552,17 +611,23 @@ export default function AdditionalPage() {
     }
 
     const firstProduct = c.products[0];
-    const opt: "products" | "collections" | "tags" = firstProduct?.targetType === "PRODUCT" ? "products"
-      : firstProduct?.targetType === "COLLECTION" ? "collections" : "tags";
+    // Both PRODUCT and VARIANT targetType use "products" option now (variant-level granularity)
+    const opt: "products" | "collections" | "tags" =
+      (firstProduct?.targetType === "PRODUCT" || (firstProduct?.targetType as string) === "VARIANT") ? "products"
+      : firstProduct?.targetType === "COLLECTION" ? "collections"
+      : "tags";
 
-    let selProds = [];
-    let selCols = [];
-    let selTags = [];
-    let tProds = [];
-    let colProdsMap = {};
+    let selProds: any[] = [];
+    let selCols: any[] = [];
+    let selTags: any[] = [];
+    let tProds: any[] = [];
+    let colProdsMap: Record<string, any[]> = {};
+    let selVars: any[] = [];
 
-    if (opt === "products") selProds = ld.resolvedProducts || [];
-    else if (opt === "collections") {
+    if (opt === "products") {
+      // Always use variant-level state for "Specific Products" mode
+      selVars = ld.loadedVariants || [];
+    } else if (opt === "collections") {
       selCols = ld.loadedCollections || [];
       colProdsMap = ld.resolvedCollectionsMap || {};
     } else {
@@ -608,6 +673,7 @@ export default function AdditionalPage() {
       productOption: opt,
       selectedProducts: selProds,
       selectedCollections: selCols,
+      selectedVariants: selVars,
       collectionProductsMap: colProdsMap,
       selectedTags: selTags,
       tagProducts: tProds,
@@ -627,6 +693,7 @@ export default function AdditionalPage() {
     setProductOption(initial.productOption);
     setSelectedProducts(initial.selectedProducts);
     setSelectedCollections(initial.selectedCollections);
+    setSelectedVariants(initial.selectedVariants || []);
     setCollectionProductsMap(initial.collectionProductsMap);
     setSelectedTags(initial.selectedTags);
     setTagProducts(initial.tagProducts);
@@ -648,9 +715,12 @@ export default function AdditionalPage() {
     setDiscountType(val as "percentage" | "fixed" | "fixed_discount");
   });
   useWebComponentChoice(productChoiceRef, (val) => {
-    setProductOption(val as "products" | "collections" | "tags");
+    const newVal = val as "products" | "collections" | "tags";
+    setProductOption(newVal);
     setCurrentPage(1);
     setSearchQuery("");
+    // Clear variant selections when switching away from products mode
+    if (newVal !== "products") setSelectedVariants([]);
   });
 
   // ── Imperatively keep s-choice selected attr in sync (controlled) ──
@@ -751,19 +821,60 @@ export default function AdditionalPage() {
     }
   }, [actionFetcher.data, actionFetcher.state]);
 
-  // ── Browse (products / collections) ──
+  // ── Browse (products / collections / variants) ──
   const handleBrowse = async () => {
     try {
       if (productOptionRef.current === "products") {
-        const selected = await shopify.resourcePicker({ type: "product", multiple: true });
+        // Construct selectionIds based on current selectedVariants grouped by productId
+        const productMap: Record<string, { id: string; variants: { id: string }[] }> = {};
+        for (const variant of selectedVariants) {
+          if (!variant.productId) continue;
+          if (!productMap[variant.productId]) {
+            productMap[variant.productId] = {
+              id: variant.productId,
+              variants: [],
+            };
+          }
+          productMap[variant.productId].variants.push({ id: variant.id });
+        }
+        const selectionIds = Object.values(productMap);
+
+        // Use variant-aware picker so merchants can select specific variants per product
+        const selected = await shopify.resourcePicker({
+          type: "product",
+          multiple: true,
+          filter: { variants: true },
+          selectionIds
+        });
         if (selected) {
-          setSelectedProducts(selected.map((p: any) => ({
-            id: p.id, title: p.title, handle: p.handle,
-            featuredImage: { url: p.images?.[0]?.url || "" },
-          })));
+          // ── Merge logic: keep variants from untouched products ──────────────
+          const returnedProductIds = new Set((selected as any[]).map((p: any) => p.id));
+          const keptVariants = selectedVariants.filter(
+            (v: any) => !returnedProductIds.has(v.productId)
+          );
+          const newVariants: any[] = [];
+          for (const product of selected as any[]) {
+            for (const v of (product.variants || [])) {
+              newVariants.push({
+                id: v.id,
+                title: v.title,
+                price: parseFloat(v.price || "0"),
+                productTitle: product.title || "",
+                productHandle: product.handle || "",
+                productId: product.id || "",
+                featuredImage: { url: product.images?.[0]?.url || v.image?.url || "" },
+              });
+            }
+          }
+          setSelectedVariants([...keptVariants, ...newVariants]);
         }
       } else if (productOptionRef.current === "collections") {
-        const selected = await shopify.resourcePicker({ type: "collection", multiple: true });
+        const selectionIds = selectedCollections.map((c: any) => ({ id: c.id }));
+        const selected = await shopify.resourcePicker({
+          type: "collection",
+          multiple: true,
+          selectionIds,
+        });
         if (selected) {
           const mapped = selected.map((c: any) => ({ id: c.id, title: c.title }));
           setSelectedCollections(mapped);
@@ -794,6 +905,10 @@ export default function AdditionalPage() {
   };
 
   const handleRemoveProduct = (id: string) => setSelectedProducts((p) => p.filter((x) => x.id !== id));
+  // Remove all variants belonging to a product (used in "products" mode grouped table)
+  const handleRemoveProductVariants = (productId: string) =>
+    setSelectedVariants((v) => v.filter((x) => x.productId !== productId));
+  const handleRemoveVariant = (id: string) => setSelectedVariants((v) => v.filter((x) => x.id !== id));
   const handleRemoveCollection = (id: string) => {
     setSelectedCollections((p) => p.filter((c) => c.id !== id));
     setCollectionProductsMap((prev) => { const n = { ...prev }; delete n[id]; delete n["all"]; return n; });
@@ -808,7 +923,25 @@ export default function AdditionalPage() {
 
   // ── Active product list ──
   const activeProducts = (() => {
-    if (productOption === "products") return selectedProducts;
+    if (productOption === "products") {
+      // Group selectedVariants by product → one display row per product
+      const groups = new Map<string, { id: string; title: string; featuredImage: any; variantNames: string[]; variantIds: string[] }>();
+      for (const v of selectedVariants) {
+        if (!groups.has(v.productId)) {
+          groups.set(v.productId, {
+            id: v.productId,
+            title: v.productTitle || "Product",
+            featuredImage: v.featuredImage,
+            variantNames: [],
+            variantIds: [],
+          });
+        }
+        const g = groups.get(v.productId)!;
+        g.variantNames.push(v.title);
+        g.variantIds.push(v.id);
+      }
+      return Array.from(groups.values());
+    }
     if (productOption === "collections") {
       const prods: any[] = [];
       const seen = new Set();
@@ -891,7 +1024,7 @@ export default function AdditionalPage() {
     if (!name.trim()) { shopify.toast.show("Campaign name is required", { isError: true }); return; }
 
     let targetValue = "";
-    if (productOption === "products") targetValue = selectedProducts.map((p) => p.id).join(",");
+    if (productOption === "products") targetValue = selectedVariants.map((v) => v.id).join(",");
     else if (productOption === "collections") targetValue = selectedCollections.map((c) => c.id).join(",");
     else targetValue = selectedTags.join(",");
 
@@ -916,7 +1049,12 @@ export default function AdditionalPage() {
     if (campaignId) f.append("id", campaignId);
     f.append("name", name);
     f.append("discountType", discountType === "percentage" ? "PERCENTAGE" : discountType === "fixed_discount" ? "FIXED_DISCOUNT" : "FIX_AMOUNT");
-    f.append("targetType", productOption === "products" ? "PRODUCT" : productOption === "collections" ? "COLLECTION" : "TAG");
+    f.append(
+      "targetType",
+      productOption === "products" ? "VARIANT"
+        : productOption === "collections" ? "COLLECTION"
+        : "TAG"
+    );
     f.append("targetValue", targetValue);
     f.append("stages", JSON.stringify(stagesToSubmit));
     submit(f, { method: "POST" });
@@ -931,6 +1069,7 @@ export default function AdditionalPage() {
       setProductOption(initial.productOption);
       setSelectedProducts(initial.selectedProducts);
       setSelectedCollections(initial.selectedCollections);
+      setSelectedVariants(initial.selectedVariants || []);
       setCollectionProductsMap(initial.collectionProductsMap);
       setSelectedTags(initial.selectedTags);
       setTagProducts(initial.tagProducts);
@@ -1023,6 +1162,7 @@ export default function AdditionalPage() {
             <s-choice value="tags" selected={productOption === "tags" ? true : undefined}>
               Product Tags
             </s-choice>
+
           </s-choice-list>
         </s-box>
         <s-divider />
@@ -1109,12 +1249,12 @@ export default function AdditionalPage() {
                 placeholder={
                   productOption === "products" ? "Search selected products…"
                     : productOption === "collections" ? "Search products in selected collections…"
-                      : "Search products by tag…"
+                    : "Search products by tag…"
                 }
                 value={searchQuery}
                 onChange={(e: any) => { setSearchQuery(e.currentTarget.value); setCurrentPage(1); }}
               />
-              {/* Browse button for products & collections only */}
+              {/* Browse button for products & collections & variants */}
               {productOption !== "tags" && (
                 <s-button onClick={handleBrowse}>
                   Browse {productOption === "collections" ? "Collections" : "Products"}
@@ -1133,7 +1273,7 @@ export default function AdditionalPage() {
                   <s-table-cell>
                     <s-text tone="neutral">
                       {productOption === "products"
-                        ? "No products selected. Click 'Browse Products' to add products."
+                        ? "No products selected. Click 'Browse Products' to add products and their variants."
                         : productOption === "collections" && selectedCollections.length === 0
                           ? "No collections selected. Click 'Browse Collections' to add."
                           : productOption === "tags" && selectedTags.length === 0
@@ -1164,6 +1304,27 @@ export default function AdditionalPage() {
                         </s-clickable>
                         <s-stack direction="block" gap="small">
                           <s-text>{product.title}</s-text>
+                          {/* In products mode: show selected variant names as chips */}
+                          {productOption === "products" && (product as any).variantNames?.length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                              {(product as any).variantNames.map((vName: string, i: number) => (
+                                <span
+                                  key={i}
+                                  style={{
+                                    fontSize: "11px",
+                                    padding: "2px 8px",
+                                    borderRadius: "12px",
+                                    background: "var(--p-color-bg-surface-secondary, #f1f1f1)",
+                                    color: "var(--p-color-text-secondary, #555)",
+                                    fontWeight: 500,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {vName}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           {productOption === "tags" && product.tags?.length > 0 && (
                             <s-text color="subdued">
                               Tags: {product.tags.filter((t: string) =>
@@ -1175,17 +1336,16 @@ export default function AdditionalPage() {
                       </s-stack>
                     </s-table-cell>
                     <s-table-cell>
-                      {/* Only allow direct removal for individually selected products */}
                       {productOption === "products" ? (
                         <s-button
                           icon="delete"
                           accessibilityLabel={`Remove ${product.title}`}
                           tone="critical"
-                          onClick={() => handleRemoveProduct(product.id)}
+                          onClick={() => handleRemoveProductVariants((product as any).id)}
                         />
-                      ) : (
+                      ) : productOption === "collections" || productOption === "tags" ? (
                         <s-text color="subdued">—</s-text>
-                      )}
+                      ) : null}
                     </s-table-cell>
                   </s-table-row>
                 ))
@@ -1427,7 +1587,7 @@ export default function AdditionalPage() {
                 <s-text tone="neutral">Target : </s-text>
                 <s-badge>
                   {productOption === "products"
-                    ? `${selectedProducts.length} product${selectedProducts.length !== 1 ? "s" : ""}`
+                    ? `${selectedVariants.length} variant${selectedVariants.length !== 1 ? "s" : ""} across ${new Set(selectedVariants.map((v: any) => v.productId)).size} product${new Set(selectedVariants.map((v: any) => v.productId)).size !== 1 ? "s" : ""}`
                     : productOption === "collections"
                       ? `${selectedCollections.length} collection${selectedCollections.length !== 1 ? "s" : ""}`
                       : `${selectedTags.length} tag${selectedTags.length !== 1 ? "s" : ""}`}
