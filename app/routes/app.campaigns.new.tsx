@@ -214,6 +214,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const offset = getTimezoneOffset(shopData.ianaTimezone);
   const shopSettings = { timezone: shopData.ianaTimezone, currency: shopData.currencyCode, offset };
 
+  const productIdsParam = url.searchParams.get("productIds");
+  if (actionType === "resolve-products" && productIdsParam) {
+    const ids = productIdsParam.split(",").filter(Boolean);
+    if (ids.length) {
+      const res = await admin.graphql(`#graphql
+        query getProductsWithVariants($ids: [ID!]!) {
+          nodes(ids: $ids) {
+            ... on Product {
+              id
+              title
+              variants(first: 250) {
+                nodes {
+                  id
+                  title
+                }
+              }
+            }
+          }
+        }`, { variables: { ids } });
+      const json = await res.json();
+      const products = (json.data?.nodes || []).filter(Boolean);
+      return { products, resolvedProductsForIds: true, shopSettings };
+    }
+  }
+
   if (actionType === "resolve-collection" && collectionId) {
     const response = await admin.graphql(`#graphql
       query getCollectionProducts($id: ID!) {
@@ -578,6 +603,7 @@ export default function AdditionalPage() {
   const [tagProducts, setTagProducts] = useState<any[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [tagLoading, setTagLoading] = useState(false);
+  const [productTotalVariantsMap, setProductTotalVariantsMap] = useState<Record<string, { id: string; title: string }[]>>({});
 
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -700,6 +726,20 @@ export default function AdditionalPage() {
     setPhases(initial.phases);
   }, [getCampaignInitialValues]);
 
+  // Initialize productTotalVariantsMap from loaderData
+  useEffect(() => {
+    const ld = loaderData as any;
+    if (ld?.resolvedProducts) {
+      const map: Record<string, { id: string; title: string }[]> = {};
+      for (const p of ld.resolvedProducts) {
+        if (p.variants?.nodes) {
+          map[p.id] = p.variants.nodes.map((v: any) => ({ id: v.id, title: v.title }));
+        }
+      }
+      setProductTotalVariantsMap((prev) => ({ ...prev, ...map }));
+    }
+  }, [loaderData]);
+
   // ── Refs for s-* web component listeners ──
   const discountChoiceRef = useRef<any>(null);
   const productChoiceRef = useRef<any>(null);
@@ -794,6 +834,14 @@ export default function AdditionalPage() {
         });
       } else if (data.resolvedCollectionId) {
         setCollectionProductsMap((prev) => ({ ...prev, [data.resolvedCollectionId]: data.products || [] }));
+      } else if (data.resolvedProductsForIds && data.products) {
+        const map: Record<string, { id: string; title: string }[]> = {};
+        for (const p of data.products) {
+          if (p.variants?.nodes) {
+            map[p.id] = p.variants.nodes.map((v: any) => ({ id: v.id, title: v.title }));
+          }
+        }
+        setProductTotalVariantsMap((prev) => ({ ...prev, ...map }));
       }
     }
   }, [fetcher.data, fetcher.state]);
@@ -867,6 +915,11 @@ export default function AdditionalPage() {
             }
           }
           setSelectedVariants([...keptVariants, ...newVariants]);
+
+          const missingIds = Array.from(returnedProductIds).filter((id) => !productTotalVariantsMap[id]);
+          if (missingIds.length > 0) {
+            fetcher.load(`/app/campaigns/new?action=resolve-products&productIds=${encodeURIComponent(missingIds.join(","))}`);
+          }
         }
       } else if (productOptionRef.current === "collections") {
         const selectionIds = selectedCollections.map((c: any) => ({ id: c.id }));
@@ -1304,27 +1357,38 @@ export default function AdditionalPage() {
                         </s-clickable>
                         <s-stack direction="block" gap="small">
                           <s-text>{product.title}</s-text>
-                          {/* In products mode: show selected variant names as chips */}
-                          {productOption === "products" && (product as any).variantNames?.length > 0 && (
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
-                              {(product as any).variantNames.map((vName: string, i: number) => (
-                                <span
-                                  key={i}
-                                  style={{
-                                    fontSize: "11px",
-                                    padding: "2px 8px",
-                                    borderRadius: "12px",
-                                    background: "var(--p-color-bg-surface-secondary, #f1f1f1)",
-                                    color: "var(--p-color-text-secondary, #555)",
-                                    fontWeight: 500,
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  {vName}
-                                </span>
-                              ))}
-                            </div>
-                          )}
+                          {/* In products mode: show selected variant names as chips conditionally */}
+                          {productOption === "products" && (() => {
+                            const totalVariants = productTotalVariantsMap[product.id] || [];
+                            const hasOnlyDefaultVariant = totalVariants.length === 1 && totalVariants[0].title === "Default Title";
+                            const isDefaultTitleSelected = (product as any).variantNames?.length === 1 && (product as any).variantNames[0] === "Default Title";
+                            const allVariantsSelected = totalVariants.length > 0 && (product as any).variantIds?.length === totalVariants.length;
+
+                            if (hasOnlyDefaultVariant || isDefaultTitleSelected || allVariantsSelected) {
+                              return null;
+                            }
+
+                            return (
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                                {(product as any).variantNames.map((vName: string, i: number) => (
+                                  <span
+                                    key={i}
+                                    style={{
+                                      fontSize: "11px",
+                                      padding: "2px 8px",
+                                      borderRadius: "12px",
+                                      background: "var(--p-color-bg-surface-secondary, #f1f1f1)",
+                                      color: "var(--p-color-text-secondary, #555)",
+                                      fontWeight: 500,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {vName}
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()}
                           {productOption === "tags" && product.tags?.length > 0 && (
                             <s-text color="subdued">
                               Tags: {product.tags.filter((t: string) =>

@@ -427,7 +427,7 @@ export default function CampaignsList() {
           </s-section>
           
 
-          <s-section padding="none" accessibilityLabel="Campaigns table section">
+          <s-section padding="base" accessibilityLabel="Campaigns table section">
             <s-table>
               <s-grid slot="filters" gap="small-200" gridTemplateColumns="1fr auto">
                 <s-text-field
