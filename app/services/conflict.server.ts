@@ -128,19 +128,19 @@ export async function logConflict(
     2
   )} (Original: $${originalPrice.toFixed(2)}). Conflicting campaign IDs: ${conflictingCampaignIds.join(", ")}`;
 
-  // await prisma.activityLog.create({
-  //   data: {
-  //     shopId,
-  //     campaignId,
-  //     event: LogEvent.CONFLICT_DETECTED,
-  //     message,
-  //     metadata: {
-  //       variantId,
-  //       conflictingCampaignIds,
-  //       chosenCampaignId,
-  //       chosenPrice,
-  //       originalPrice,
-  //     },
-  //   },
-  // });
+  await prisma.activityLog.create({
+    data: {
+      shopId,
+      campaignId,
+      event: LogEvent.CONFLICT_DETECTED,
+      message,
+      metadata: {
+        variantId,
+        conflictingCampaignIds,
+        chosenCampaignId,
+        chosenPrice,
+        originalPrice,
+      },
+    },
+  });
 }

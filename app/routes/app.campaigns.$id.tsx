@@ -159,6 +159,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (!campaign) return { error: "Campaign not found" };
 
   const restoreVariants = async () => {
+    const settings = await prisma.themeSettings.findUnique({ where: { shopId: shop.id } });
+    const strategy = settings?.conflictStrategy || "HIGHEST_DISCOUNT";
+
     const snapshots = await prisma.variantPriceSnapshot.findMany({ where: { shopId: shop.id, campaignId: campaign.id } });
     for (const snap of snapshots) {
       const others = await prisma.variantPriceSnapshot.findMany({
@@ -173,7 +176,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           else p = (s?.discountValue ?? 0);
           return p;
         });
-        await updateVariantPriceWithRetry(admin, snap.variantId, Math.min(...prices), snap.originalPrice);
+        const finalPrice = strategy === "LOWEST_DISCOUNT" ? Math.max(...prices) : Math.min(...prices);
+        await updateVariantPriceWithRetry(admin, snap.variantId, finalPrice, snap.originalPrice);
       } else {
         await updateVariantPriceWithRetry(admin, snap.variantId, snap.originalPrice, snap.originalComparePrice);
       }
@@ -199,7 +203,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       await prisma.campaign.update({ where: { id: campaign.id }, data: { status: CampaignStatus.DRAFT } });
       await prisma.campaignStage.updateMany({ where: { campaignId: campaign.id }, data: { status: StageStatus.PENDING } });
       await prisma.schedulerJob.deleteMany({ where: { stageId: { in: campaign.stages.map((s) => s.id) } } });
-      // await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" paused (moved to draft).` } });
       return { success: true };
     } catch (e: any) { return { error: e.message }; }
   }
@@ -258,7 +261,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       const nextStatus = campaignStartDate <= now ? CampaignStatus.ACTIVE : CampaignStatus.SCHEDULED;
       await prisma.campaign.update({ where: { id: campaign.id }, data: { status: nextStatus } });
-      // await prisma.activityLog.create({ data: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CAMPAIGN_UPDATED, message: `Campaign "${campaign.name}" resumed. Dates shifted starting from now.` } });
       return { success: true };
     } catch (e: any) { return { error: e.message }; }
   }
@@ -462,14 +464,17 @@ export default function CampaignDetail() {
                 <s-text tone="neutral">No products targeted by this campaign.</s-text>
               ) : (
                 <s-stack direction="block" gap="base">
-                  <s-table>
-                    <s-table-header-row>
-                      <s-table-header listSlot="primary">Product</s-table-header>
-                      <s-table-header listSlot="secondary">Tags</s-table-header>
-                    </s-table-header-row>
+                  <div style={{ overflowX: "auto", width: "100%" }}>
+                    <s-table>
+                      <s-table-header-row>
+                        <s-table-header listSlot="primary">Product</s-table-header>
+                        <s-table-header listSlot="secondary">Tags</s-table-header>
+                      </s-table-header-row>
 
-                    <s-table-body>
-                      {paginatedProducts.map((product) => (
+                      <s-table-body>
+                        {paginatedProducts.map((product) => {
+                          const displayProdTitle = product.title.length > 20 ? product.title.substring(0, 17) + "..." : product.title;
+                        return (
                         <s-table-row key={product.id}>
                           <s-table-cell>
                             <s-stack direction="inline" gap="small" alignItems="center">
@@ -483,7 +488,7 @@ export default function CampaignDetail() {
                                   src={product.featuredImage?.url || "https://picsum.photos/id/29/80/80"}
                                 />
                               </s-clickable>
-                              <s-text><strong>{product.title}</strong></s-text>
+                              <s-text><strong>{displayProdTitle}</strong></s-text>
                             </s-stack>
                           </s-table-cell>
                           <s-table-cell>
@@ -498,9 +503,10 @@ export default function CampaignDetail() {
                             </s-stack>
                           </s-table-cell>
                         </s-table-row>
-                      ))}
+                      )})}
                     </s-table-body>
                   </s-table>
+                </div>
 
                   {/* Pagination */}
                   {totalProductPages > 1 && (
@@ -545,7 +551,8 @@ export default function CampaignDetail() {
                 <s-banner tone="success">No price conflicts detected for this campaign.</s-banner>
               ) : (
                 <>
-                  <s-table>
+                  <div style={{ overflowX: "auto", width: "100%" }}>
+                    <s-table>
                     <s-table-header-row>
                       <s-table-header listSlot="primary">Date/Time</s-table-header>
                       <s-table-header>Product Variant</s-table-header>
@@ -566,9 +573,14 @@ export default function CampaignDetail() {
                           .filter(Boolean)
                           .join(", ");
 
+                        const winningDisplay = winningCampaignName.length > 18 ? winningCampaignName.substring(0, 15) + "..." : winningCampaignName;
+                        const conflictingDisplay = otherCampaignNames.length > 20 ? otherCampaignNames.substring(0, 17) + "..." : otherCampaignNames;
+
                         const productImage = variantDetails?.product?.featuredImage?.url || "https://picsum.photos/id/29/80/80";
                         const productTitle = variantDetails?.product?.title || "Unknown Product";
                         const variantTitle = variantDetails?.title && variantDetails.title !== "Default Title" ? ` (${variantDetails.title})` : "";
+                        const fullTitle = `${productTitle}${variantTitle}`;
+                        const displayTitle = fullTitle.length > 20 ? fullTitle.substring(0, 17) + "..." : fullTitle;
 
                         return (
                           <s-table-row key={log.id}>
@@ -582,7 +594,7 @@ export default function CampaignDetail() {
                                 >
                                   <s-image objectFit="cover" src={productImage} />
                                 </s-clickable>
-                                <s-text><strong>{productTitle}{variantTitle}</strong></s-text>
+                                <s-text><strong>{displayTitle}</strong></s-text>
                               </s-stack>
                             </s-table-cell>
                             <s-table-cell>
@@ -592,11 +604,11 @@ export default function CampaignDetail() {
                               <s-text tone="success"><strong>${(meta.chosenPrice ?? 0).toFixed(2)}</strong></s-text>
                             </s-table-cell>
                             <s-table-cell>
-                              <s-badge tone="success">{winningCampaignName}</s-badge>
+                              <s-badge tone="success">{winningDisplay}</s-badge>
                             </s-table-cell>
                             <s-table-cell>
-                              {otherCampaignNames ? (
-                                <s-text color="subdued">{otherCampaignNames}</s-text>
+                              {conflictingDisplay ? (
+                                <s-text color="subdued">{conflictingDisplay}</s-text>
                               ) : (
                                 <s-text color="subdued">—</s-text>
                               )}
@@ -606,6 +618,7 @@ export default function CampaignDetail() {
                       })}
                     </s-table-body>
                   </s-table>
+                </div>
 
                   {/* Pagination */}
                   {totalConflictPages > 1 && (
