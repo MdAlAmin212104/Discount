@@ -388,16 +388,6 @@ export default function CampaignsList() {
 
   return (
     <s-page heading="Campaigns">
-      {campaigns.length > 0 && (
-        <s-button
-          slot="primary-action"
-          variant="primary"
-          onClick={() => navigate("/app/campaigns/new")}
-        >
-          New Campaign
-        </s-button>
-      )}
-
       {campaigns.length === 0 ? (
         <EmptyState
           title="Start creating campaigns"
@@ -410,22 +400,30 @@ export default function CampaignsList() {
           {/* Tab Bar */}
           <s-section>
             <div style={{ borderBottom: "1px solid var(--p-border-subdued)"}}>
-            <s-stack direction="inline" gap="small">
-              {STATUS_TABS.map((tab, i) => (
+              <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+                <s-stack direction="inline" gap="small">
+                  {STATUS_TABS.map((tab, i) => (
+                    <s-button
+                      key={tab}
+                      variant={activeTab === i ? "primary" : "tertiary"}
+                      onClick={() => {
+                        setActiveTab(i);
+                        setSearchQuery("");
+                        setCurrentPage(1);
+                      }}
+                    >
+                      {tab.charAt(0) + tab.slice(1).toLowerCase()}
+                    </s-button>
+                  ))}
+                </s-stack>
                 <s-button
-                  key={tab}
-                  variant={activeTab === i ? "primary" : "tertiary"}
-                  onClick={() => {
-                    setActiveTab(i);
-                    setSearchQuery("");
-                    setCurrentPage(1);
-                  }}
+                  variant="primary"
+                  onClick={() => navigate("/app/campaigns/new")}
                 >
-                  {tab.charAt(0) + tab.slice(1).toLowerCase()}
+                  New Campaign
                 </s-button>
-              ))}
-            </s-stack>
-          </div>
+              </s-stack>
+            </div>
           </s-section>
           
 

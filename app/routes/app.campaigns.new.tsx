@@ -506,6 +506,8 @@ export default function AdditionalPage() {
   const offset = (loaderData as any)?.shopSettings?.offset || "+00:00";
   const currency = (loaderData as any)?.shopSettings?.currency || "USD";
 
+  const visibleStyle = { style: { overflow: "visible" } } as any;
+
   // ── State ──
   const [name, setName] = useState("");
   const [discountType, setDiscountType] = useState<"percentage" | "fixed" | "fixed_discount">("percentage");
@@ -938,6 +940,11 @@ export default function AdditionalPage() {
   };
 
   const getCampaignStatus = () => {
+    if (campaignId && campaign) {
+      if (campaign.status === "DRAFT" || campaign.status === "PAUSED") {
+        return "Draft";
+      }
+    }
     if (!name.trim()) return "Draft";
     const now = new Date();
     const starts = phases.map((p) => new Date(`${p.startDate}T${p.startTime}:00${offset}`));
@@ -964,30 +971,18 @@ export default function AdditionalPage() {
     <form data-save-bar data-discard-confirmation onSubmit={handleSaveCampaign} onReset={handleDiscard}>
       <s-page heading={campaignId ? "Edit Campaign" : "Create Campaign"}>
         <s-link slot="breadcrumb-actions" onClick={() => navigate(campaignId ? `/app/campaigns/${campaignId}` : "/app/campaigns")}>Campaigns</s-link>
-      {campaignId && campaign && (
-        <>
-          {(campaign.status === "ACTIVE" || campaign.status === "SCHEDULED") && (
-            <s-button
-              slot="secondary-actions"
-              icon="pause-circle"
-              onClick={() => actionFetcher.submit({ intent: "PAUSE" }, { method: "POST", action: `/app/campaigns/${campaignId}` })}
-              loading={actionFetcher.state !== "idle" ? true : undefined}
-            >
-              Pause Campaign
-            </s-button>
-          )}
-        </>
-      )}
-
-      <s-section heading="Campaign Details">
-        {campaignId && campaign && (
-          <s-box paddingBlockEnd="base">
-            <s-stack direction="inline" gap="small" alignItems="center">
-              <s-text tone="neutral">Current Status:</s-text>
-              <StatusBadge status={campaign.status} />
-            </s-stack>
-          </s-box>
-        )}
+      <s-section {...visibleStyle}>
+        <s-box paddingBlockEnd="base">
+          <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+            <s-heading>Campaign Details</s-heading>
+            {campaignId && campaign && (
+              <s-stack direction="inline" gap="small" alignItems="center">
+                <s-text tone="neutral">Current Status:</s-text>
+                <StatusBadge status={campaign.status} />
+              </s-stack>
+            )}
+          </s-stack>
+        </s-box>
 
         {/* ── Campaign Name ── */}
         <s-card>
@@ -1273,7 +1268,7 @@ export default function AdditionalPage() {
               </s-box>
             ) : (
               /* ── Active phase edit card ── */
-              <s-box key={index} padding="base" border="base" borderRadius="base">
+              <s-box key={index} padding="base" border="base" borderRadius="base" {...visibleStyle}>
                 <s-stack direction="block" gap="base">
                   <s-stack direction="inline" justifyContent="space-between" alignItems="center">
                     <s-heading>Configure Phase {index + 1}</s-heading>
@@ -1384,9 +1379,35 @@ export default function AdditionalPage() {
       </s-section>
 
       {/* ── Aside Summary ── */}
-      <s-section slot="aside" heading="Live Summary">
+      <s-section slot="aside">
         <s-card>
           <s-stack direction="block" gap="base">
+            <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+              <s-heading>Live Summary</s-heading>
+              {campaignId && campaign && (
+                <>
+                  {(campaign.status === "ACTIVE" || campaign.status === "SCHEDULED") && (
+                    <s-button
+                      icon="pause-circle"
+                      onClick={() => actionFetcher.submit({ intent: "PAUSE" }, { method: "POST", action: `/app/campaigns/${campaignId}` })}
+                      loading={actionFetcher.state !== "idle" ? true : undefined}
+                    >
+                      Pause Campaign
+                    </s-button>
+                  )}
+                  {(campaign.status === "DRAFT" || campaign.status === "PAUSED") && (
+                    <s-button
+                      icon="play-circle"
+                      onClick={() => actionFetcher.submit({ intent: "RESUME" }, { method: "POST", action: `/app/campaigns/${campaignId}` })}
+                      loading={actionFetcher.state !== "idle" ? true : undefined}
+                    >
+                      Activate Campaign
+                    </s-button>
+                  )}
+                </>
+              )}
+            </s-stack>
+            <s-divider />
             <s-stack direction="block" gap="small">
               <s-stack direction="inline" justifyContent="space-between" alignItems="center">
                 <s-text tone="neutral">Status : </s-text>
