@@ -1460,6 +1460,45 @@ export default function AdditionalPage() {
           </s-stack>
         </s-card>
       </s-section>
+
+      <s-section>
+        <s-card heading="Campaign Best Practices & Launch Guidelines">
+          <s-box paddingBlock="base">
+            <s-stack direction="block" gap="large">
+              <s-text tone="neutral">
+                Before launching your campaign, review these optimization guidelines to maximize conversion rate and protect profit margins.
+              </s-text>
+
+              <s-grid gridTemplateColumns="1fr 1fr" gap="small">
+                <s-stack direction="block" gap="small" borderRadius="base" border="base" padding="base">
+                  <s-text><strong>Tiered Discount Strategy</strong></s-text>
+                  <s-text tone="neutral">
+                    Start with a larger discount in Stage 1 to generate early sales momentum, then decrease the discount in subsequent stages to lock in higher margins.
+                  </s-text>
+                </s-stack>
+
+                <s-stack direction="block" gap="small" borderRadius="base" border="base" padding="base">
+                  <s-text><strong>Profit Margin Safeguard</strong></s-text>
+                  <s-text tone="neutral">
+                    Always confirm that your baseline price exceeds the cost of goods sold. When multiple campaigns target the same variant, the conflict strategy resolves which price will apply.
+                  </s-text>
+                </s-stack>
+              </s-grid>
+
+              <s-divider />
+
+              <s-stack direction="block" gap="small">
+                <s-text><strong>Launch Checklist</strong></s-text>
+                <s-stack gap="small">
+                  <s-text tone="neutral">✓ Ensure the countdown timer app embed is enabled in your theme customizer settings.</s-text>
+                  <s-text tone="neutral">✓ Double check start and end dates inside the store's timezone.</s-text>
+                  <s-text tone="neutral">✓ Review the products targeted in the top panel to ensure accurate selection.</s-text>
+                </s-stack>
+              </s-stack>
+            </s-stack>
+          </s-box>
+        </s-card>
+      </s-section>
     </s-page>
   </form>
   );

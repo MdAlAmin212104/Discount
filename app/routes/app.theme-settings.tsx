@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useSubmit, useActionData, useNavigation } from "react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
@@ -82,6 +82,43 @@ export default function ThemeSettingsPage() {
 
   const [activeTab, setActiveTab] = useState(0);
 
+  const initialValuesRef = useRef({
+    badgeText: settings?.badgeText ?? "Sale",
+    countdownText: settings?.countdownText ?? "Ends in",
+    stageLabelText: settings?.stageLabelText ?? "Stage",
+    customJs: settings?.customJs ?? "",
+    customCss: settings?.customCss ?? "",
+    fontSize: settings?.fontSize ?? 14,
+    fontWeight: settings?.fontWeight ?? "500",
+    salePriceColor: settings?.salePriceColor ?? "#E63946",
+    originalPriceColor: settings?.originalPriceColor ?? "#6B7280",
+    badgeBg: settings?.badgeBg ?? "#E63946",
+    badgeTextColor: settings?.badgeTextColor ?? "#FFFFFF",
+    padding: settings?.padding ?? 12,
+    borderRadius: settings?.borderRadius ?? 8,
+    alignment: settings?.alignment ?? "left",
+    sliderItems: settings?.sliderItems ?? 3,
+    cartMode: settings?.cartMode ?? "stay",
+    memberLabel: settings?.memberLabel ?? "Inner Circle Member",
+    welcomeHeading: settings?.welcomeHeading ?? "Exclusive Access",
+    welcomeEmphasis: settings?.welcomeEmphasis ?? "Offers",
+    welcomeSubHeading: settings?.welcomeSubHeading ?? "Members get every release first, before public launch.",
+    productHeading: settings?.productHeading ?? "Selected Pieces",
+    reserveButtonText: settings?.reserveButtonText ?? "Reserve Now",
+    buttonAction: settings?.buttonAction ?? "cart",
+    bgColor: settings?.bgColor ?? "#f0efeb",
+    textColor: settings?.textColor ?? "#0e0e0d",
+    borderColor: settings?.borderColor ?? "#e2dfd9",
+    cardColor: settings?.cardColor ?? "#faf9f7",
+    accentColor: settings?.accentColor ?? "#1a3a2a",
+    mutedColor: settings?.mutedColor ?? "#9a9792",
+    paddingTop: settings?.paddingTop ?? 40,
+    paddingBottom: settings?.paddingBottom ?? 40,
+    maxWidth: settings?.maxWidth ?? 580,
+    conflictStrategy: settings?.conflictStrategy ?? "HIGHEST_DISCOUNT",
+    publicShipping: settings?.publicShipping ?? "Ships in ~5-7 days",
+  });
+
   // Form state
   const [badgeText, setBadgeText] = useState(settings?.badgeText ?? "Sale");
   const [countdownText, setCountdownText] = useState(settings?.countdownText ?? "Ends in");
@@ -121,8 +158,49 @@ export default function ThemeSettingsPage() {
   const [publicShipping, setPublicShipping] = useState(settings?.publicShipping ?? "Ships in ~5-7 days");
 
   useEffect(() => {
-    if (actionData?.success) shopify.toast.show("Theme settings saved!");
-    else if (actionData?.error) shopify.toast.show(actionData.error, { isError: true });
+    if (actionData?.success) {
+      shopify.toast.show("Theme settings saved!");
+      if (actionData?.settings) {
+        initialValuesRef.current = {
+          badgeText: actionData.settings.badgeText ?? "Sale",
+          countdownText: actionData.settings.countdownText ?? "Ends in",
+          stageLabelText: actionData.settings.stageLabelText ?? "Stage",
+          customJs: actionData.settings.customJs ?? "",
+          customCss: actionData.settings.customCss ?? "",
+          fontSize: actionData.settings.fontSize ?? 14,
+          fontWeight: actionData.settings.fontWeight ?? "500",
+          salePriceColor: actionData.settings.salePriceColor ?? "#E63946",
+          originalPriceColor: actionData.settings.originalPriceColor ?? "#6B7280",
+          badgeBg: actionData.settings.badgeBg ?? "#E63946",
+          badgeTextColor: actionData.settings.badgeTextColor ?? "#FFFFFF",
+          padding: actionData.settings.padding ?? 12,
+          borderRadius: actionData.settings.borderRadius ?? 8,
+          alignment: actionData.settings.alignment ?? "left",
+          sliderItems: actionData.settings.sliderItems ?? 3,
+          cartMode: actionData.settings.cartMode ?? "stay",
+          memberLabel: actionData.settings.memberLabel ?? "Inner Circle Member",
+          welcomeHeading: actionData.settings.welcomeHeading ?? "Exclusive Access",
+          welcomeEmphasis: actionData.settings.welcomeEmphasis ?? "Offers",
+          welcomeSubHeading: actionData.settings.welcomeSubHeading ?? "Members get every release first, before public launch.",
+          productHeading: actionData.settings.productHeading ?? "Selected Pieces",
+          reserveButtonText: actionData.settings.reserveButtonText ?? "Reserve Now",
+          buttonAction: actionData.settings.buttonAction ?? "cart",
+          bgColor: actionData.settings.bgColor ?? "#f0efeb",
+          textColor: actionData.settings.textColor ?? "#0e0e0d",
+          borderColor: actionData.settings.borderColor ?? "#e2dfd9",
+          cardColor: actionData.settings.cardColor ?? "#faf9f7",
+          accentColor: actionData.settings.accentColor ?? "#1a3a2a",
+          mutedColor: actionData.settings.mutedColor ?? "#9a9792",
+          paddingTop: actionData.settings.paddingTop ?? 40,
+          paddingBottom: actionData.settings.paddingBottom ?? 40,
+          maxWidth: actionData.settings.maxWidth ?? 580,
+          conflictStrategy: actionData.settings.conflictStrategy ?? "HIGHEST_DISCOUNT",
+          publicShipping: actionData.settings.publicShipping ?? "Ships in ~5-7 days",
+        };
+      }
+    } else if (actionData?.error) {
+      shopify.toast.show(actionData.error, { isError: true });
+    }
   }, [actionData]);
 
   const handleSave = () => {
@@ -164,6 +242,46 @@ export default function ThemeSettingsPage() {
     submit(f, { method: "POST" });
   };
 
+  const handleDiscard = (e: any) => {
+    e.preventDefault();
+    const initial = initialValuesRef.current;
+    setBadgeText(initial.badgeText);
+    setCountdownText(initial.countdownText);
+    setStageLabelText(initial.stageLabelText);
+    setCustomJs(initial.customJs);
+    setCustomCss(initial.customCss);
+    setFontSize(initial.fontSize);
+    setFontWeight(initial.fontWeight);
+    setSalePriceColor(initial.salePriceColor);
+    setOriginalPriceColor(initial.originalPriceColor);
+    setBadgeBg(initial.badgeBg);
+    setBadgeTextColor(initial.badgeTextColor);
+    setPadding(initial.padding);
+    setBorderRadius(initial.borderRadius);
+    setAlignment(initial.alignment);
+    setSliderItems(initial.sliderItems);
+    setCartMode(initial.cartMode);
+    setMemberLabel(initial.memberLabel);
+    setWelcomeHeading(initial.welcomeHeading);
+    setWelcomeEmphasis(initial.welcomeEmphasis);
+    setWelcomeSubHeading(initial.welcomeSubHeading);
+    setProductHeading(initial.productHeading);
+    setReserveButtonText(initial.reserveButtonText);
+    setButtonAction(initial.buttonAction);
+    setBgColor(initial.bgColor);
+    setTextColor(initial.textColor);
+    setBorderColor(initial.borderColor);
+    setCardColor(initial.cardColor);
+    setAccentColor(initial.accentColor);
+    setMutedColor(initial.mutedColor);
+    setPaddingTop(initial.paddingTop);
+    setPaddingBottom(initial.paddingBottom);
+    setMaxWidth(initial.maxWidth);
+    setConflictStrategy(initial.conflictStrategy);
+    setPublicShipping(initial.publicShipping);
+    shopify.toast.show("Changes discarded");
+  };
+
   // ---- Storefront mock preview (kept as real HTML/CSS since this simulates the actual
   // storefront widget output, not the admin UI — Polaris components can't render this) ----
   const renderLivePreview = () => {
@@ -186,11 +304,12 @@ export default function ThemeSettingsPage() {
         boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
         borderRadius: "16px",
         border: "1px solid #e1e3e5",
-        padding: "24px",
+        padding: "24px 12px", // Less padding on sides on mobile
         display: "flex",
         justifyContent: "center",
         boxSizing: "border-box",
-        width: "100%"
+        width: "100%",
+        overflow: "hidden" // Prevent horizontal page overflow
       }}>
         <style>{`
           .preview-timeline-wrapper {
@@ -309,6 +428,28 @@ export default function ThemeSettingsPage() {
             font-size: 11px;
             color: ${mutedColor};
           }
+
+          /* Responsive Scaling for Mobile Screens */
+          @media only screen and (max-width: 580px) {
+            .preview-active-timer-countdown {
+              gap: 6px;
+            }
+            .preview-countdown-col {
+              min-width: 36px;
+            }
+            .preview-countdown-num {
+              font-size: 28px !important;
+            }
+            .preview-countdown-sep {
+              font-size: 24px !important;
+              top: -4px !important;
+            }
+          }
+          @media only screen and (max-width: 480px) {
+            s-grid {
+              grid-template-columns: 1fr !important;
+            }
+          }
         `}</style>
 
         <div style={previewStyles}>
@@ -374,10 +515,8 @@ export default function ThemeSettingsPage() {
   const TABS = ["General Settings", "Colors & Styling", "Custom CSS"];
 
   return (
-    <s-page heading="Theme Customization">
-      <s-button slot="primary-action" variant="primary" onClick={handleSave} loading={isSaving ? true : undefined}>
-        Save Settings
-      </s-button>
+    <form data-save-bar data-discard-confirmation onSubmit={(e) => { e.preventDefault(); handleSave(); }} onReset={handleDiscard}>
+      <s-page heading="Theme Customization">
 
       <s-stack direction="block" gap="large">
         {/* Tab bar */}
@@ -574,6 +713,7 @@ export default function ThemeSettingsPage() {
           </s-card>
         </s-stack>
       </s-section>
-    </s-page>
+      </s-page>
+    </form>
   );
 }
