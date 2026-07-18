@@ -1,6 +1,6 @@
 import { Suspense, useState } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate, Await, useSubmit } from "react-router";
+import { useLoaderData, useNavigate, Await, useSubmit, redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
 import { SetupGuide } from "../components/SetupGuide";
@@ -97,6 +97,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       where: { shopId: shop.id },
       data: updateData,
     });
+
+    const redirectTo = formData.get("redirectTo")?.toString();
+    if (redirectTo) {
+      return redirect(redirectTo);
+    }
     return { success: true, themeSettings: updated };
   }
 
@@ -847,7 +852,14 @@ export default function Dashboard() {
       primaryButton: {
         content: "Configure Theme Settings",
         props: {
-          onClick: () => navigate("/app/theme-settings"),
+          onClick: () => {
+            const formData = new FormData();
+            formData.append("actionType", "updateSetupStep");
+            formData.append("stepId", "customize");
+            formData.append("complete", "true");
+            formData.append("redirectTo", "/app/theme-settings");
+            submit(formData, { method: "POST" });
+          },
         },
       },
     },

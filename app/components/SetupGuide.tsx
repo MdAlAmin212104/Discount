@@ -246,17 +246,16 @@ const SetupItem = ({
               </div>
             </s-clickable>
           </s-grid-item>
-          <s-grid-item>
+          <s-grid-item >
             <div
-              className={`${styles.itemContent} ${expanded ? styles.setupItemExpanded : styles.setupItem}`}
+              className={`${styles.itemContent} ${styles.itemContentRow} ${expanded ? styles.setupItemExpanded : styles.setupItem}`}
               onClick={expanded ? undefined : setExpanded}
               style={{
                 cursor: expanded ? 'default' : 'pointer',
                 paddingBlockStart: '2px',
-                display: 'flex',
               }}
             >
-              <s-stack direction="inline" id={id}>
+              <s-stack id={id}>
                 {
                   expanded ? (
                     <s-heading>
@@ -300,14 +299,6 @@ const SetupItem = ({
                   </div>
                 </div>
               </s-stack>
-              {image && expanded ? ( // hide image at 700px down
-                <img
-                  className={styles.itemImage}
-                  src={image.url}
-                  alt={image.alt || title}
-                  style={{ maxHeight: '7.75rem' }}
-                />
-              ) : null}
             </div>
           </s-grid-item>
         </s-grid>

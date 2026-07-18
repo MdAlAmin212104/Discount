@@ -673,12 +673,12 @@ export default function ThemeSettingsPage() {
           <s-card heading="How It Works">
             <s-box padding="base">
               <s-stack gap="small">
-                <s-text><strong>⏰ Multi-Stage Urgency</strong></s-text>
+                <s-text><strong>Multi-Stage Urgency</strong></s-text>
                 <s-text tone="neutral">
                   Campaigns automatically move your products through scheduled discount drops. The live countdown drives buyer urgency (FOMO) to purchase early.
                 </s-text>
                 <s-divider />
-                <s-text><strong>🔄 Auto-Transition</strong></s-text>
+                <s-text><strong>Auto-Transition</strong></s-text>
                 <s-text tone="neutral">
                   As each stage ends, the next stage starts automatically. Once all phases complete, prices return back to regular original values.
                 </s-text>
@@ -689,12 +689,12 @@ export default function ThemeSettingsPage() {
           <s-card heading="Business Improvement Tips">
             <s-box padding="base">
               <s-stack gap="small">
-                <s-text><strong>📈 Tiered Drop Strategy</strong></s-text>
+                <s-text><strong>Tiered Drop Strategy</strong></s-text>
                 <s-text tone="neutral">
                   Start with a high discount (e.g. 20% off for Drop 1) and lower it in subsequent drops. This rewards early buyers and creates a rush of sales.
                 </s-text>
                 <s-divider />
-                <s-text><strong>🚚 Dynamic Shipping Estimates</strong></s-text>
+                <s-text><strong>Dynamic Shipping Estimates</strong></s-text>
                 <s-text tone="neutral">
                   Use the campaign phase builder to specify longer shipping times for future drops, allowing you to run pre-order campaigns seamlessly.
                 </s-text>

@@ -1,3 +1,4 @@
+
 .setupItem {
   /* padding: 0.25rem 0.5rem; */
   border-radius: 0.5rem;
@@ -22,23 +23,45 @@
 
 .itemContent {
   width: 100%;
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   gap: 2rem;
+  justify-content: space-between;
   align-items: start;
 }
 
-.itemImage {
+:global(.setup-guide-item-image) {
   max-height: 7.75rem;
   max-width: 140px;
   width: auto;
   height: auto;
   object-fit: contain;
+  flex-shrink: 0;
 }
 
-/* Hide image on smaller screens where there is not enough room for side-by-side layout */
-@media (max-width: 48em) {
-  .itemImage {
-    display: none;
+/* Hide image on smaller screens (mobile/tablet/open sidebar) where there is not enough room */
+@media (max-width: 61.875em) {
+  img.setup-guide-item-image {
+    display: none!important;
+  }
+}
+
+.itemContent > s-stack {
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-guide-item-image {
+  max-height: 7.75rem;
+}
+
+.itemContentRow {
+  display: flex!important;
+}
+
+@media (max-width: 700px) {
+  .itemContentRow {
+    display: block;
   }
 }
