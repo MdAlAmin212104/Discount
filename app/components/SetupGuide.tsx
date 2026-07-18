@@ -171,14 +171,9 @@ export const SetupGuide = ({ onDismiss, onStepComplete, items }: SetupGuideProps
       </div>
       {completedItemsLength === items.length ? (
         <div style={{ borderTop: '1px solid var(--p-color-border-subdued)' }}>
-          <s-box
-            background="subdued"
-            padding="base"
-          >
-            <s-stack direction="inline" justifyContent="end">
-              <s-button onClick={onDismiss}>Dismiss Guide</s-button>
-            </s-stack>
-          </s-box>
+          <s-stack direction="inline" justifyContent="end">
+            <s-button onClick={onDismiss}>Dismiss Guide</s-button>
+          </s-stack>
         </div>
       ) : null}
     </s-section>
