@@ -257,31 +257,6 @@ function EmptyState({
           </s-card>
         </div>
       </s-section>
-      {!hideSecondary && (
-        <s-section slot="aside">
-          <s-card>
-            <s-box padding="base">
-              <s-stack gap="base" alignItems="center">
-                <s-heading heading-alignment="center">Resources & Help</s-heading>
-                <div style={{ color: "var(--p-color-text-secondary)", fontSize: "13px", textAlign: "center" }}>
-                  <s-paragraph text-alignment="center">
-                    Find guides and tutorials on how to set up active campaign discount schedules, optimize buyer engagement, and drive higher store conversions.
-                  </s-paragraph>
-                </div>
-                <s-box paddingBlockStart="small">
-                  <s-button
-                    variant="secondary"
-                    href="/"
-
-                  >
-                    Request Support
-                  </s-button>
-                </s-box>
-              </s-stack>
-            </s-box>
-          </s-card>
-        </s-section>
-      )}
     </>
   );
 }
