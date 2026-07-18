@@ -116,61 +116,61 @@ function KPIsSkeleton() {
 
 function KPIsGrid({ stats }: { stats: any }) {
   return (
-      <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="small">
-        <KPICard
-          title="Active Campaigns"
-          value={stats.activeCampaigns}
-          icon="play-circle"
-          subtext={`${stats.activeCampaigns} live campaigns`}
-          badgeText="Live"
-          badgeTone="success"
-        />
-        <KPICard
-          title="Scheduled"
-          value={stats.scheduledCampaigns}
-          icon="calendar-time"
-          subtext={`${stats.scheduledCampaigns} upcoming`}
-          badgeText="Upcoming"
-          badgeTone="info"
-        />
-        <KPICard
-          title="Products Affected"
-          value={stats.productsAffected}
-          icon="product"
-          subtext="total variant count"
-          badgeText="Total"
-          badgeTone="neutral"
-        />
-        <KPICard
-          title="Today's Updates"
-          value={stats.priceUpdatesToday}
-          icon="price-list"
-          subtext="price adjustments"
-          badgeText="Today"
-          badgeTone="caution"
-        />
-      </s-grid>
+    <s-grid gridTemplateColumns="repeat(auto-fit, minmax(200px, 1fr))" gap="small">
+      <KPICard
+        title="Active Campaigns"
+        value={stats.activeCampaigns}
+        icon="play-circle"
+        subtext={`${stats.activeCampaigns} live campaigns`}
+        badgeText="Live"
+        badgeTone="success"
+      />
+      <KPICard
+        title="Scheduled"
+        value={stats.scheduledCampaigns}
+        icon="calendar-time"
+        subtext={`${stats.scheduledCampaigns} upcoming`}
+        badgeText="Upcoming"
+        badgeTone="info"
+      />
+      <KPICard
+        title="Products Affected"
+        value={stats.productsAffected}
+        icon="product"
+        subtext="total variant count"
+        badgeText="Total"
+        badgeTone="neutral"
+      />
+      <KPICard
+        title="Today's Updates"
+        value={stats.priceUpdatesToday}
+        icon="price-list"
+        subtext="price adjustments"
+        badgeText="Today"
+        badgeTone="caution"
+      />
+    </s-grid>
   );
 }
 
 function ActiveCampaignsSkeleton() {
   return (
-      <s-box padding="base">
-        <s-stack gap="base">
-          <s-text><strong>Loading campaigns...</strong></s-text>
-          <s-divider />
-          {[1, 2].map((i) => (
-            <s-box key={i} padding="base" background="subdued" borderRadius="base">
-              <s-stack gap="base">
-                <s-stack direction="inline" justifyContent="space-between">
-                  <s-text color="subdued">Synchronizing schedule data...</s-text>
-                </s-stack>
-                <s-text color="subdued">Updating progress state...</s-text>
+    <s-box padding="base">
+      <s-stack gap="base">
+        <s-text><strong>Loading campaigns...</strong></s-text>
+        <s-divider />
+        {[1, 2].map((i) => (
+          <s-box key={i} padding="base" background="subdued" borderRadius="base">
+            <s-stack gap="base">
+              <s-stack direction="inline" justifyContent="space-between">
+                <s-text color="subdued">Synchronizing schedule data...</s-text>
               </s-stack>
-            </s-box>
-          ))}
-        </s-stack>
-      </s-box>
+              <s-text color="subdued">Updating progress state...</s-text>
+            </s-stack>
+          </s-box>
+        ))}
+      </s-stack>
+    </s-box>
   );
 }
 
@@ -203,23 +203,53 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
         <s-divider />
 
         {campaigns.length === 0 ? (
-          <s-box paddingBlock="large" paddingInline="base">
-            <s-empty-state
-              heading="No active campaigns"
-              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-            >
-              <s-text color="subdued">
-                Start your first campaign to boost sales with automated discounts.
-              </s-text>
-              <s-button
-                slot="action"
-                variant="primary"
-                onClick={() => navigate("/app/campaigns/new")}
-              >
-                Create Campaign
-              </s-button>
-            </s-empty-state>
-          </s-box>
+          // <s-box paddingBlock="large">
+          //   <s-empty-state
+          //     heading="No active campaigns"
+          //     image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+          //   >
+          //     <s-text color="subdued" >
+          //       Start your first campaign to boost sales with automated discounts.
+          //     </s-text>
+          //     <s-button
+          //       slot="action"
+          //       variant="primary"
+          //       onClick={() => navigate("/app/campaigns/new")}
+          //     >
+          //       Create Campaign
+          //     </s-button>
+          //   </s-empty-state>
+          // </s-box>
+          <s-grid gap="base" justifyItems="center" paddingBlock="large-400">
+            <s-box maxInlineSize="200px" maxBlockSize="200px">
+              {/* aspectRatio should match the actual image dimensions (width/height) */}
+              <s-image
+                aspectRatio="1/0.5"
+                src="https://cdn.shopify.com/static/images/polaris/patterns/callout.png"
+                alt="A stylized graphic of four characters, each holding a puzzle piece"
+              />
+            </s-box>
+            <s-grid justifyItems="center" maxInlineSize="450px" gap="base">
+              <s-stack alignItems="center">
+                <s-heading>Start creating campaigns</s-heading>
+                <s-paragraph>
+                  Start your first campaign to boost sales with automated discounts.
+                </s-paragraph>
+              </s-stack>
+              <s-button-group>
+                <s-button
+                  slot="secondary-actions"
+                  aria-label="learn More"
+                  onClick={() => navigate("/app/theme-settings")}
+                >
+                  Learn more
+                </s-button>
+                <s-button slot="primary-action" aria-label="Create Campaign" onClick={() => navigate("/app/campaigns/new")}>
+                  Create Campaign
+                </s-button>
+              </s-button-group>
+            </s-grid>
+          </s-grid>
         ) : (
           <s-stack gap="base">
             {paginatedCampaigns.map((campaign: any) => {
@@ -377,139 +407,139 @@ function UpcomingEventsSection({ upcomingJobs }: any) {
   const paginatedJobs = upcomingJobs.slice(startIndex, endIndex);
 
   return (
-      <s-box>
-        <s-stack gap="base">
-          <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-            <s-stack gap="small">
-              <s-heading>Upcoming Events</s-heading>
+    <s-box>
+      <s-stack gap="base">
+        <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+          <s-stack gap="small">
+            <s-heading>Upcoming Events</s-heading>
+            <s-text color="subdued">
+              Next 24 hours
+            </s-text>
+          </s-stack>
+          <s-badge tone="caution">
+            {upcomingJobs.length}
+          </s-badge>
+        </s-stack>
+
+        <s-divider />
+
+        {upcomingJobs.length === 0 ? (
+          <s-box paddingBlock="base">
+            <s-stack gap="base" alignItems="center">
+              <s-icon type="check-circle" tone="success" size="base" />
+              <s-text>
+                <strong>No pending updates</strong>
+              </s-text>
               <s-text color="subdued">
-                Next 24 hours
+                All scheduled discounts are up to date
               </s-text>
             </s-stack>
-            <s-badge tone="caution">
-              {upcomingJobs.length}
-            </s-badge>
-          </s-stack>
+          </s-box>
+        ) : (
+          <s-stack gap="base">
+            {paginatedJobs.map((job: any) => {
+              const discountLabel = job.details
+                ? job.details.discountType === "PERCENTAGE"
+                  ? `${job.details.discountValue}% OFF`
+                  : `$${job.details.discountValue} OFF`
+                : "Price adjustment";
 
-          <s-divider />
-
-          {upcomingJobs.length === 0 ? (
-            <s-box paddingBlock="base">
-              <s-stack gap="base" alignItems="center">
-                <s-icon type="check-circle" tone="success" size="base" />
-                <s-text>
-                  <strong>No pending updates</strong>
-                </s-text>
-                <s-text color="subdued">
-                  All scheduled discounts are up to date
-                </s-text>
-              </s-stack>
-            </s-box>
-          ) : (
-            <s-stack gap="base">
-              {paginatedJobs.map((job: any) => {
-                const discountLabel = job.details
-                  ? job.details.discountType === "PERCENTAGE"
-                    ? `${job.details.discountValue}% OFF`
-                    : `$${job.details.discountValue} OFF`
-                  : "Price adjustment";
-
-                let stageTitle = "Stage Update";
-                let stageSubtitle = job.details?.stageLabel || "";
-                if (job.details?.stageLabel) {
-                  try {
-                    const parsed = JSON.parse(job.details.stageLabel);
-                    if (parsed && typeof parsed === "object") {
-                      stageTitle = parsed.phaseTitle || "Stage Update";
-                      stageSubtitle = parsed.label || "";
-                    }
-                  } catch (e) {
-                    // Fallback
+              let stageTitle = "Stage Update";
+              let stageSubtitle = job.details?.stageLabel || "";
+              if (job.details?.stageLabel) {
+                try {
+                  const parsed = JSON.parse(job.details.stageLabel);
+                  if (parsed && typeof parsed === "object") {
+                    stageTitle = parsed.phaseTitle || "Stage Update";
+                    stageSubtitle = parsed.label || "";
                   }
+                } catch (e) {
+                  // Fallback
                 }
-                const displayTitle = stageTitle.length > 20 ? stageTitle.substring(0, 20) + "..." : stageTitle;
-                const displaySubtitle = stageSubtitle.length > 20 ? stageSubtitle.substring(0, 20) + "..." : stageSubtitle;
+              }
+              const displayTitle = stageTitle.length > 20 ? stageTitle.substring(0, 20) + "..." : stageTitle;
+              const displaySubtitle = stageSubtitle.length > 20 ? stageSubtitle.substring(0, 20) + "..." : stageSubtitle;
 
-                return (
-                  <s-clickable
-                    key={job.id}
-                    onClick={() => {
-                      if (job.details?.campaignId) {
-                        navigate(`/app/campaigns/${job.details.campaignId}`);
-                      }
-                    }}
+              return (
+                <s-clickable
+                  key={job.id}
+                  onClick={() => {
+                    if (job.details?.campaignId) {
+                      navigate(`/app/campaigns/${job.details.campaignId}`);
+                    }
+                  }}
+                >
+                  <s-box
+                    padding="base"
+                    background="subdued"
+                    borderRadius="base"
                   >
-                    <s-box
-                      padding="base"
-                      background="subdued"
-                      borderRadius="base"
-                    >
-                      <s-stack gap="base">
-                        <s-stack direction="inline" justifyContent="space-between" alignItems="start" gap="base">
-                          <s-stack gap="small">
-                            <s-stack direction="inline" gap="small" alignItems="center">
-                              <s-text>
-                                <strong>{job.details?.campaignName || "Discount Update"}</strong>
-                              </s-text>
-                            </s-stack>
-                            <s-text color="subdued">
-                              {new Date(job.scheduledAt).toLocaleTimeString(undefined, {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                    <s-stack gap="base">
+                      <s-stack direction="inline" justifyContent="space-between" alignItems="start" gap="base">
+                        <s-stack gap="small">
+                          <s-stack direction="inline" gap="small" alignItems="center">
+                            <s-text>
+                              <strong>{job.details?.campaignName || "Discount Update"}</strong>
                             </s-text>
                           </s-stack>
-
-                          <s-stack direction="block" gap="none" alignItems="end">
-                            <s-badge tone="info">
-                              {displayTitle}
-                            </s-badge>
-                            {displaySubtitle && (
-                              <s-box paddingBlockStart="small">
-                                <s-text color="subdued">
-                                  {displaySubtitle}
-                                </s-text>
-                              </s-box>
-                            )}
-                          </s-stack>
+                          <s-text color="subdued">
+                            {new Date(job.scheduledAt).toLocaleTimeString(undefined, {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </s-text>
                         </s-stack>
 
-                        <s-stack gap="small">
-                          <s-stack direction="inline" justifyContent="space-between">
-                            <s-text>
-                              <strong>{discountLabel}</strong>
-                            </s-text>
-                          </s-stack>
+                        <s-stack direction="block" gap="none" alignItems="end">
+                          <s-badge tone="info">
+                            {displayTitle}
+                          </s-badge>
+                          {displaySubtitle && (
+                            <s-box paddingBlockStart="small">
+                              <s-text color="subdued">
+                                {displaySubtitle}
+                              </s-text>
+                            </s-box>
+                          )}
                         </s-stack>
                       </s-stack>
-                    </s-box>
-                  </s-clickable>
-                );
-              })}
 
-              {totalPages > 1 && (
-                <s-box paddingBlockStart="base">
-                  <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
-                    <s-button
-                      disabled={currentPage === 1 ? true : undefined}
-                      onClick={(e: any) => { e.preventDefault(); if (currentPage > 1) setCurrentPage(currentPage - 1); }}
-                    >
-                      Previous
-                    </s-button>
-                    <s-text>Page {currentPage} of {totalPages}</s-text>
-                    <s-button
-                      disabled={currentPage === totalPages ? true : undefined}
-                      onClick={(e: any) => { e.preventDefault(); if (currentPage < totalPages) setCurrentPage(currentPage + 1); }}
-                    >
-                      Next
-                    </s-button>
-                  </s-stack>
-                </s-box>
-              )}
-            </s-stack>
-          )}
-        </s-stack>
-      </s-box>
+                      <s-stack gap="small">
+                        <s-stack direction="inline" justifyContent="space-between">
+                          <s-text>
+                            <strong>{discountLabel}</strong>
+                          </s-text>
+                        </s-stack>
+                      </s-stack>
+                    </s-stack>
+                  </s-box>
+                </s-clickable>
+              );
+            })}
+
+            {totalPages > 1 && (
+              <s-box paddingBlockStart="base">
+                <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
+                  <s-button
+                    disabled={currentPage === 1 ? true : undefined}
+                    onClick={(e: any) => { e.preventDefault(); if (currentPage > 1) setCurrentPage(currentPage - 1); }}
+                  >
+                    Previous
+                  </s-button>
+                  <s-text>Page {currentPage} of {totalPages}</s-text>
+                  <s-button
+                    disabled={currentPage === totalPages ? true : undefined}
+                    onClick={(e: any) => { e.preventDefault(); if (currentPage < totalPages) setCurrentPage(currentPage + 1); }}
+                  >
+                    Next
+                  </s-button>
+                </s-stack>
+              </s-box>
+            )}
+          </s-stack>
+        )}
+      </s-stack>
+    </s-box>
   );
 }
 
@@ -523,92 +553,92 @@ function RecentlyCompletedSection({ recentlyCompleted }: any) {
   const paginatedCompleted = recentlyCompleted.slice(startIndex, endIndex);
 
   return (
-      <s-box paddingBlock="base">
-        <s-stack gap="base">
-          <s-stack direction="inline" justifyContent="space-between" alignItems="center">
-            <s-stack gap="small">
-              <s-heading>Completed</s-heading>
+    <s-box paddingBlock="base">
+      <s-stack gap="base">
+        <s-stack direction="inline" justifyContent="space-between" alignItems="center">
+          <s-stack gap="small">
+            <s-heading>Completed</s-heading>
+            <s-text color="subdued">
+              Recently finished campaigns
+            </s-text>
+          </s-stack>
+          <s-badge tone="success">
+            {recentlyCompleted.length}
+          </s-badge>
+        </s-stack>
+
+        <s-divider />
+
+        {recentlyCompleted.length === 0 ? (
+          <s-box paddingBlock="base">
+            <s-stack gap="base" alignItems="center">
+              <s-icon type="calendar" size="base" />
+              <s-text>
+                <strong>No completed campaigns</strong>
+              </s-text>
               <s-text color="subdued">
-                Recently finished campaigns
+                Finished campaigns will appear here
               </s-text>
             </s-stack>
-            <s-badge tone="success">
-              {recentlyCompleted.length}
-            </s-badge>
-          </s-stack>
-
-          <s-divider />
-
-          {recentlyCompleted.length === 0 ? (
-            <s-box paddingBlock="base">
-              <s-stack gap="base" alignItems="center">
-                <s-icon type="calendar" size="base" />
-                <s-text>
-                  <strong>No completed campaigns</strong>
-                </s-text>
-                <s-text color="subdued">
-                  Finished campaigns will appear here
-                </s-text>
-              </s-stack>
-            </s-box>
-          ) : (
-            <s-stack gap="base">
-              {paginatedCompleted.map((campaign: any) => (
-                <s-clickable
-                  key={campaign.id}
-                  onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
+          </s-box>
+        ) : (
+          <s-stack gap="base">
+            {paginatedCompleted.map((campaign: any) => (
+              <s-clickable
+                key={campaign.id}
+                onClick={() => navigate(`/app/campaigns/${campaign.id}`)}
+              >
+                <s-box
+                  padding="base"
+                  background="subdued"
+                  borderRadius="base"
                 >
-                  <s-box
-                    padding="base"
-                    background="subdued"
-                    borderRadius="base"
-                  >
-                    <s-stack gap="base">
-                      <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base">
-                        <s-stack gap="small">
-                          <s-text>
-                            <strong>{campaign.name}</strong>
-                          </s-text>
-                          <s-text color="subdued">
-                            Ended {new Date(campaign.endDate).toLocaleDateString(undefined, {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </s-text>
-                        </s-stack>
-                        <s-badge tone="success">
-                          ✓ Done
-                        </s-badge>
+                  <s-stack gap="base">
+                    <s-stack direction="inline" justifyContent="space-between" alignItems="center" gap="base">
+                      <s-stack gap="small">
+                        <s-text>
+                          <strong>{campaign.name}</strong>
+                        </s-text>
+                        <s-text color="subdued">
+                          Ended {new Date(campaign.endDate).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })}
+                        </s-text>
                       </s-stack>
+                      <s-badge tone="success">
+                        ✓ Done
+                      </s-badge>
                     </s-stack>
-                  </s-box>
-                </s-clickable>
-              ))}
-
-              {totalPages > 1 && (
-                <s-box paddingBlockStart="base">
-                  <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
-                    <s-button
-                      disabled={currentPage === 1 ? true : undefined}
-                      onClick={(e: any) => { e.preventDefault(); if (currentPage > 1) setCurrentPage(currentPage - 1); }}
-                    >
-                      Previous
-                    </s-button>
-                    <s-text>Page {currentPage} of {totalPages}</s-text>
-                    <s-button
-                      disabled={currentPage === totalPages ? true : undefined}
-                      onClick={(e: any) => { e.preventDefault(); if (currentPage < totalPages) setCurrentPage(currentPage + 1); }}
-                    >
-                      Next
-                    </s-button>
                   </s-stack>
                 </s-box>
-              )}
-            </s-stack>
-          )}
-        </s-stack>
-      </s-box>
+              </s-clickable>
+            ))}
+
+            {totalPages > 1 && (
+              <s-box paddingBlockStart="base">
+                <s-stack direction="inline" gap="small" justifyContent="center" alignItems="center">
+                  <s-button
+                    disabled={currentPage === 1 ? true : undefined}
+                    onClick={(e: any) => { e.preventDefault(); if (currentPage > 1) setCurrentPage(currentPage - 1); }}
+                  >
+                    Previous
+                  </s-button>
+                  <s-text>Page {currentPage} of {totalPages}</s-text>
+                  <s-button
+                    disabled={currentPage === totalPages ? true : undefined}
+                    onClick={(e: any) => { e.preventDefault(); if (currentPage < totalPages) setCurrentPage(currentPage + 1); }}
+                  >
+                    Next
+                  </s-button>
+                </s-stack>
+              </s-box>
+            )}
+          </s-stack>
+        )}
+      </s-stack>
+    </s-box>
   );
 }
 
@@ -688,7 +718,7 @@ export default function Dashboard() {
           </s-stack>
         </s-grid>
       </s-section>
-      
+
     </s-page>
   );
 }
