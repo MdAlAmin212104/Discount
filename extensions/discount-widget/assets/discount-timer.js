@@ -41,6 +41,7 @@
     });
 
     function fetchAndRender(container, shop, productId, variantId, moneyFormat) {
+      const isDesignMode = container.getAttribute("data-design-mode") === "true";
       let fetchUrl = `/apps/discount-showcase/products?shop=${shop}&productId=${productId}`;
       if (variantId) fetchUrl += `&variantId=${variantId}`;
 
@@ -48,7 +49,11 @@
         .then(res => res.json())
         .then(data => {
           if (data.error || !data.stages || data.stages.length === 0) {
-            container.style.display = "none";
+            if (isDesignMode) {
+              renderWarningBanner(container);
+            } else {
+              container.style.display = "none";
+            }
             return;
           }
 
@@ -56,7 +61,11 @@
         })
         .catch(err => {
           console.error("Error loading discount timer:", err);
-          container.style.display = "none";
+          if (isDesignMode) {
+            renderWarningBanner(container);
+          } else {
+            container.style.display = "none";
+          }
         });
     }
 
@@ -136,8 +145,12 @@
       const now = new Date();
       const activeStage = stages.find(s => new Date(s.startDate) <= now && new Date(s.endDate) >= now);
       if (!activeStage) {
-        // Hide storefront widget if no campaigns are currently running
-        container.style.display = "none";
+        const isDesignMode = container.getAttribute("data-design-mode") === "true";
+        if (isDesignMode) {
+          renderWarningBanner(container);
+        } else {
+          container.style.display = "none";
+        }
         return;
       }
 
@@ -285,6 +298,39 @@
 
       updateClock();
       const interval = setInterval(updateClock, 1000);
+    }
+
+    function renderWarningBanner(container) {
+      container.style.removeProperty('--dt-bg-color');
+      container.style.removeProperty('--dt-bg-gradient');
+      container.style.removeProperty('--dt-text-color');
+      container.style.removeProperty('--dt-card-color');
+      container.style.removeProperty('--dt-accent-color');
+      container.style.removeProperty('--dt-muted-color');
+      container.style.removeProperty('--dt-border-color');
+      container.style.removeProperty('--dt-sale-color');
+      container.style.removeProperty('--dt-original-color');
+      
+      container.style.padding = "0";
+      container.style.background = "transparent";
+      container.style.border = "none";
+      container.style.boxShadow = "none";
+      container.style.display = "block";
+
+      container.innerHTML = `
+        <div class="dt-warning-banner">
+          <div class="dt-warning-icon-box">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+              <line x1="12" y1="9" x2="12" y2="13"></line>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </div>
+          <div class="dt-warning-text">
+            Discount timer widget will only show on products that have an active discount campaign.
+          </div>
+        </div>
+      `;
     }
   });
 })();

@@ -144,3 +144,41 @@
   font-size: 11px;
   color: var(--dt-muted-color, #9a9792);
 }
+
+/* Warning / Placeholder Banner style in Customize Editor */
+.dt-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #e1e3e5;
+  border-radius: 8px;
+  padding: 16px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.dt-warning-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #ffb300;
+  color: #202223;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.dt-warning-icon-box svg {
+  width: 20px;
+  height: 20px;
+}
+
+.dt-warning-text {
+  font-size: 14px;
+  color: #303030;
+  line-height: 1.4;
+  text-align: left;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}

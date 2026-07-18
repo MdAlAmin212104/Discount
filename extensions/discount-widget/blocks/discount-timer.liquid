@@ -5,6 +5,7 @@
   data-variant-id="{{ product.selected_or_first_available_variant.id }}"
   data-product-price="{{ product.price | divided_by: 100.0 }}"
   data-money-format="{{ shop.money_format | escape }}"
+  data-design-mode="{% if request.design_mode %}true{% else %}false{% endif %}"
   style="display: none;"
 >
   <!-- Content is injected dynamically by discount-timer.js -->
