@@ -1,12 +1,26 @@
 import { Suspense, useState } from "react";
-import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useNavigate, Await } from "react-router";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
+import { useLoaderData, useNavigate, Await, useSubmit } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
+import { SetupGuide } from "../components/SetupGuide";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await getOrCreateShop(session.shop, session.accessToken || "");
+
+  const themeSettings = await prisma.themeSettings.findUnique({
+    where: { shopId: shop.id },
+  });
+
+  const campaignCount = await prisma.campaign.count({ where: { shopId: shop.id } });
+  let updatedThemeSettings = themeSettings;
+  if (campaignCount > 0 && themeSettings && !themeSettings.setupCampaignCreated) {
+    updatedThemeSettings = await prisma.themeSettings.update({
+      where: { shopId: shop.id },
+      data: { setupCampaignCreated: true },
+    });
+  }
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -15,6 +29,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   next24h.setHours(next24h.getHours() + 24);
 
   return {
+    shopDomain: session.shop,
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    themeSettings: updatedThemeSettings,
     stats: (async () => {
       const activeCampaigns = await prisma.campaign.count({ where: { shopId: shop.id, status: "ACTIVE" } });
       const scheduledCampaigns = await prisma.campaign.count({ where: { shopId: shop.id, status: "SCHEDULED" } });
@@ -60,6 +77,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     })),
   };
 };
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const shop = await getOrCreateShop(session.shop, session.accessToken || "");
+  const formData = await request.formData();
+  const actionType = formData.get("actionType");
+
+  if (actionType === "updateSetupStep") {
+    const stepId = formData.get("stepId");
+    const complete = formData.get("complete") === "true";
+
+    const updateData: any = {};
+    if (stepId === "campaign") updateData.setupCampaignCreated = complete;
+    if (stepId === "theme") updateData.setupThemeAdded = complete;
+    if (stepId === "customize") updateData.setupThemeCustomized = complete;
+
+    const updated = await prisma.themeSettings.update({
+      where: { shopId: shop.id },
+      data: updateData,
+    });
+    return { success: true, themeSettings: updated };
+  }
+
+  if (actionType === "dismissSetupGuide") {
+    const dismissed = formData.get("dismissed") === "true";
+    const updated = await prisma.themeSettings.update({
+      where: { shopId: shop.id },
+      data: { setupGuideDismissed: dismissed },
+    });
+    return { success: true, themeSettings: updated };
+  }
+
+  return { error: "Unknown action" };
+};
+
 
 function KPICard({ title, value, icon, subtext, badgeText, badgeTone }: {
   title: string;
@@ -642,9 +694,89 @@ function RecentlyCompletedSection({ recentlyCompleted }: any) {
   );
 }
 
+const campaignSvg = `<svg viewBox="0 0 160 120" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="120" rx="8" fill="#F4F6F8"/>
+  <circle cx="120" cy="40" r="28" fill="#E2F1EB" opacity="0.6"/>
+  <circle cx="40" cy="90" r="16" fill="#E2F1EB" opacity="0.4"/>
+  <rect x="25" y="25" width="110" height="70" rx="6" fill="#FFFFFF" stroke="#E1E3E5" stroke-width="1.5"/>
+  <line x1="35" y1="38" x2="75" y2="38" stroke="#8C9196" stroke-width="3" stroke-linecap="round"/>
+  <line x1="35" y1="46" x2="60" y2="46" stroke="#C9CCCF" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="35" y="58" width="24" height="24" rx="4" fill="#F1F2F4"/>
+  <text x="47" y="74" font-family="-apple-system, sans-serif" font-size="10" font-weight="bold" fill="#5C5F62" text-anchor="middle">30%</text>
+  <path d="M64 70 L69 70 M67 67 L70 70 L67 73" stroke="#8C9196" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="74" y="58" width="24" height="24" rx="4" fill="#E2F1EB"/>
+  <text x="86" y="74" font-family="-apple-system, sans-serif" font-size="10" font-weight="bold" fill="#008060" text-anchor="middle">20%</text>
+  <path d="M103 70 L108 70 M106 67 L109 70 L106 73" stroke="#8C9196" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="113" y="58" width="16" height="24" rx="4" fill="#FCDFD9"/>
+  <text x="121" y="74" font-family="-apple-system, sans-serif" font-size="10" font-weight="bold" fill="#D82C0D" text-anchor="middle">10%</text>
+  <g transform="translate(110, 10)">
+    <rect x="0" y="0" width="20" height="20" rx="3" fill="#008060"/>
+    <rect x="3" y="5" width="14" height="12" rx="1.5" fill="#FFFFFF"/>
+    <line x1="6" y1="2" x2="6" y2="4" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="14" y1="2" x2="14" y2="4" stroke="#FFFFFF" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="8" cy="9" r="1.5" fill="#D82C0D"/>
+    <circle cx="12" cy="9" r="1.5" fill="#008060"/>
+    <circle cx="8" cy="13" r="1.5" fill="#008060"/>
+    <circle cx="12" cy="13" r="1.5" fill="#8C9196"/>
+  </g>
+</svg>`;
+
+const themeSvg = `<svg viewBox="0 0 160 120" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="120" rx="8" fill="#F4F6F8"/>
+  <circle cx="40" cy="35" r="24" fill="#EAF1F8" opacity="0.6"/>
+  <circle cx="130" cy="95" r="20" fill="#EAF1F8" opacity="0.4"/>
+  <rect x="20" y="20" width="120" height="80" rx="6" fill="#FFFFFF" stroke="#E1E3E5" stroke-width="1.5"/>
+  <path d="M20 26 L140 26" stroke="#E1E3E5" stroke-width="1"/>
+  <circle cx="26" cy="23" r="2" fill="#E1E3E5"/>
+  <circle cx="31" cy="23" r="2" fill="#E1E3E5"/>
+  <circle cx="36" cy="23" r="2" fill="#E1E3E5"/>
+  <rect x="30" y="36" width="36" height="42" rx="3" fill="#F1F2F4"/>
+  <path d="M38 52 L44 58 L50 50 L60 62 M34 70 L62 70" stroke="#C9CCCF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="74" y1="40" x2="115" y2="40" stroke="#8C9196" stroke-width="3" stroke-linecap="round"/>
+  <line x1="74" y1="48" x2="95" y2="48" stroke="#C9CCCF" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="74" y="58" width="58" height="20" rx="3" fill="#FFF5E5" stroke="#FFC485" stroke-width="1"/>
+  <circle cx="82" cy="68" r="4.5" fill="none" stroke="#E06C00" stroke-width="1"/>
+  <line x1="82" y1="68" x2="82" y2="66" stroke="#E06C00" stroke-width="1" stroke-linecap="round"/>
+  <line x1="82" y1="68" x2="85" y2="68" stroke="#E06C00" stroke-width="1" stroke-linecap="round"/>
+  <line x1="91" y1="68" x2="124" y2="68" stroke="#E06C00" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="103" cy="68" r="8" fill="#008060" opacity="0.2"/>
+  <circle cx="103" cy="68" r="4" fill="#008060"/>
+  <path d="M125 35 L129 35 M127 33 L127 37" stroke="#008060" stroke-width="1.5" stroke-linecap="round"/>
+</svg>`;
+
+const customizeSvg = `<svg viewBox="0 0 160 120" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+  <rect width="160" height="120" rx="8" fill="#F4F6F8"/>
+  <circle cx="120" cy="85" r="24" fill="#FCE9E9" opacity="0.6"/>
+  <circle cx="40" cy="35" r="18" fill="#EAF1F8" opacity="0.5"/>
+  <rect x="20" y="25" width="45" height="70" rx="4" fill="#FFFFFF" stroke="#E1E3E5" stroke-width="1.5"/>
+  <line x1="28" y1="34" x2="48" y2="34" stroke="#8C9196" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="28" cy="46" r="4" fill="#008060"/>
+  <line x1="36" y1="46" x2="56" y2="46" stroke="#C9CCCF" stroke-width="2" stroke-linecap="round"/>
+  <line x1="28" y1="58" x2="58" y2="58" stroke="#E1E3E5" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="48" cy="58" r="3.5" fill="#202223"/>
+  <circle cx="28" cy="70" r="4" fill="#D82C0D"/>
+  <line x1="36" y1="70" x2="56" y2="70" stroke="#C9CCCF" stroke-width="2" stroke-linecap="round"/>
+  <rect x="75" y="25" width="65" height="70" rx="4" fill="#FFFFFF" stroke="#E1E3E5" stroke-width="1.5"/>
+  <line x1="83" y1="36" x2="110" y2="36" stroke="#C9CCCF" stroke-width="2.5" stroke-linecap="round"/>
+  <rect x="83" y="46" width="49" height="24" rx="3" fill="#D82C0D"/>
+  <circle cx="91" cy="58" r="3" fill="#FFFFFF" opacity="0.8"/>
+  <line x1="99" y1="58" x2="124" y2="58" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M52 46 C60 46 64 48 78 50" stroke="#008060" stroke-width="1" stroke-dasharray="2,2" stroke-linecap="round" fill="none"/>
+  <g transform="translate(68, 44) rotate(-30)">
+    <path d="M0 12 L4 16 L12 8 L8 4 Z" fill="#202223"/>
+    <path d="M12 8 L14 4 L10 2 L8 4 Z" fill="#FFC485"/>
+    <path d="M14 4 C15 3 17 3 18 4 C19 5 19 7 18 8 L14 8 Z" fill="#008060"/>
+  </g>
+</svg>`;
+
+const campaignIllustrationUrl = `data:image/svg+xml;utf8,${encodeURIComponent(campaignSvg)}`;
+const themeIllustrationUrl = `data:image/svg+xml;utf8,${encodeURIComponent(themeSvg)}`;
+const customizeIllustrationUrl = `data:image/svg+xml;utf8,${encodeURIComponent(customizeSvg)}`;
+
 export default function Dashboard() {
-  const { stats, upcomingJobs, recentlyCompleted, activeCampaignsList } = useLoaderData() as any;
+  const { shopDomain, apiKey, themeSettings, stats, upcomingJobs, recentlyCompleted, activeCampaignsList } = useLoaderData() as any;
   const navigate = useNavigate();
+  const submit = useSubmit();
 
   const getCampaignProgress = (campaign: any) => {
     const now = new Date().getTime();
@@ -662,6 +794,84 @@ export default function Dashboard() {
     ) || campaign.stages[0];
   };
 
+  const setupItems = [
+    {
+      id: "campaign",
+      title: "Create your first discount campaign",
+      description: "Automate your pricing strategy. Set up a campaign with multi-stage discounts to automatically change product prices over time.",
+      image: {
+        url: campaignIllustrationUrl,
+        alt: "Illustration showing a multi-stage discount campaign progression",
+      },
+      complete: themeSettings?.setupCampaignCreated ?? false,
+      primaryButton: {
+        content: "Create Campaign",
+        props: {
+          onClick: () => navigate("/app/campaigns/new"),
+        },
+      },
+    },
+    {
+      id: "theme",
+      title: "Add the Discount Timer to your theme",
+      description: "Enable the Discount Timer widget on your product pages. This shows customers when the current discount stage ends, driving urgency.",
+      image: {
+        url: themeIllustrationUrl,
+        alt: "Illustration showing a timer widget added on a product page preview",
+      },
+      complete: themeSettings?.setupThemeAdded ?? false,
+      primaryButton: {
+        content: "Open Theme Editor",
+        props: {
+          href: `https://${shopDomain}/admin/themes/current/editor?template=product&addAppBlockId=${apiKey}/discount-timer&target=sectionId:main`,
+          target: "_blank",
+          onClick: async () => {
+            const formData = new FormData();
+            formData.append("actionType", "updateSetupStep");
+            formData.append("stepId", "theme");
+            formData.append("complete", "true");
+            submit(formData, { method: "POST" });
+          },
+        },
+      },
+    },
+    {
+      id: "customize",
+      title: "Customize widget settings",
+      description: "Personalize the colors, font sizes, margins, and texts of your discount widget to match your store's branding.",
+      image: {
+        url: customizeIllustrationUrl,
+        alt: "Illustration showing a settings controls dashboard and a customized widget preview",
+      },
+      complete: themeSettings?.setupThemeCustomized ?? false,
+      primaryButton: {
+        content: "Configure Theme Settings",
+        props: {
+          onClick: () => navigate("/app/theme-settings"),
+        },
+      },
+    },
+  ];
+
+  const onStepComplete = async (id: string) => {
+    const item = setupItems.find((i) => i.id === id);
+    if (!item) return;
+    const nextCompleteState = !item.complete;
+
+    const formData = new FormData();
+    formData.append("actionType", "updateSetupStep");
+    formData.append("stepId", id);
+    formData.append("complete", nextCompleteState ? "true" : "false");
+    submit(formData, { method: "POST" });
+  };
+
+  const onDismiss = () => {
+    const formData = new FormData();
+    formData.append("actionType", "dismissSetupGuide");
+    formData.append("dismissed", "true");
+    submit(formData, { method: "POST" });
+  };
+
   return (
     <s-page heading="Dashboard">
       {/* ── Primary Action ── */}
@@ -674,6 +884,17 @@ export default function Dashboard() {
         New Campaign
       </s-button>
 
+      {/* ── Onboarding Setup Guide ── */}
+      {themeSettings && !themeSettings.setupGuideDismissed && (
+        <s-section>
+          <SetupGuide
+            onDismiss={onDismiss}
+            onStepComplete={onStepComplete}
+            items={setupItems}
+          />
+        </s-section>
+      )}
+
       {/* ── KPI Metrics Grid ── */}
       <s-section>
         <Suspense fallback={<KPIsSkeleton />}>
@@ -682,6 +903,7 @@ export default function Dashboard() {
           </Await>
         </Suspense>
       </s-section>
+
 
       {/* ── Main Content Area ── */}
       <s-section>

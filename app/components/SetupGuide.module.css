@@ -1,0 +1,44 @@
+.setupItem {
+  /* padding: 0.25rem 0.5rem; */
+  border-radius: 0.5rem;
+}
+
+.setupItem:hover {
+  background-color: #f7f7f7;
+}
+
+.setupItemExpanded:hover {
+  background-color: inherit;
+}
+
+.completeButton {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #303030;
+}
+
+.itemContent {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2rem;
+  align-items: start;
+}
+
+.itemImage {
+  max-height: 7.75rem;
+  max-width: 140px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Hide image on smaller screens where there is not enough room for side-by-side layout */
+@media (max-width: 48em) {
+  .itemImage {
+    display: none;
+  }
+}

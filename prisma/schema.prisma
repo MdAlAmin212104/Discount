@@ -147,6 +147,10 @@ model ThemeSettings {
   maxWidth        Int     @default(580)
   conflictStrategy String @default("HIGHEST_DISCOUNT")
   publicShipping   String @default("Ships in ~5-7 days")
+  setupCampaignCreated Boolean @default(false)
+  setupThemeAdded     Boolean @default(false)
+  setupThemeCustomized Boolean @default(false)
+  setupGuideDismissed Boolean @default(false)
 }
 
 
