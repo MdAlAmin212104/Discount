@@ -42,8 +42,32 @@ export const SetupGuide = ({ onDismiss, onStepComplete, items }: SetupGuideProps
     defaultExpandedIndex !== -1 ? items[defaultExpandedIndex].id : (items[0]?.id || null)
   );
   const [isGuideOpen, setIsGuideOpen] = useState(true);
+  const [localDismissed, setLocalDismissed] = useState(false);
   const accessId = useId();
   const completedItemsLength = items.filter((item) => item.complete).length;
+
+  if (localDismissed) {
+    return (
+      <s-section>
+        <s-box>
+          <s-stack direction="inline" justifyContent="space-between">
+            <s-stack direction="inline" gap="small-300" alignItems="center">
+              <s-text color="subdued">
+                You've dismissed this card.
+              </s-text>
+              <s-button
+                variant="tertiary"
+                onClick={() => setLocalDismissed(false)}
+              >
+                Undo
+              </s-button>
+            </s-stack>
+            <s-button icon="x" variant="tertiary" onClick={onDismiss} aria-label="Close" />
+          </s-stack>
+        </s-box>
+      </s-section>
+    );
+  }
 
   return (
     <s-section>
@@ -60,7 +84,7 @@ export const SetupGuide = ({ onDismiss, onStepComplete, items }: SetupGuideProps
                 icon="menu-horizontal"
               />
               <s-menu id="setup-guide-menu" accessibilityLabel="Setup guide options">
-                <s-button onClick={onDismiss}>
+                <s-button onClick={() => setLocalDismissed(true)}>
                   <s-stack direction="inline" gap="small" alignItems="center">
                     <div
                       style={{
@@ -97,47 +121,31 @@ export const SetupGuide = ({ onDismiss, onStepComplete, items }: SetupGuideProps
           </s-text>
           <div style={{ marginTop: '.8rem' }}>
             <s-stack direction="inline" alignItems="center" gap="small-300" paddingBlockEnd={!isGuideOpen ? 'small' : 'none'}>
-              {completedItemsLength === items.length ? (
-                <div style={{ maxHeight: '1rem' }}>
-                  <s-stack direction="inline" gap="small">
-                    <s-icon
-                      type="check"
-                      tone="neutral"
-                    />
-                    <s-text color="subdued">
-                      Done
-                    </s-text>
-                  </s-stack>
-                </div>
-              ) : (
-                <s-text color="subdued">
-                  {`${completedItemsLength} / ${items.length} completed`}
-                </s-text>
-              )}
+              <s-text color="subdued">
+                {`${completedItemsLength} / ${items.length} completed`}
+              </s-text>
 
-              {completedItemsLength !== items.length ? (
-                <div style={{ width: '100px' }}>
+              <div style={{ width: '100px' }}>
+                <div
+                  style={{
+                    width: '100%',
+                    height: '8px',
+                    backgroundColor: 'var(--p-color-border-secondary, #e2e2e2)',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}
+                >
                   <div
                     style={{
-                      width: '100%',
-                      height: '8px',
-                      backgroundColor: 'var(--p-color-border-secondary)',
+                      width: `${(completedItemsLength / items.length) * 100}%`,
+                      height: '100%',
+                      backgroundColor: 'var(--p-color-bg-inverse, #303030)',
                       borderRadius: '4px',
-                      overflow: 'hidden'
+                      transition: 'width 0.3s ease-in-out'
                     }}
-                  >
-                    <div
-                      style={{
-                        width: `${(items.filter((item) => item.complete).length / items.length) * 100}%`,
-                        height: '100%',
-                        backgroundColor: 'var(--p-color-bg-inverse)',
-                        borderRadius: '4px',
-                        transition: 'width 0.3s ease-in-out'
-                      }}
-                    />
-                  </div>
+                  />
                 </div>
-              ) : null}
+              </div>
             </s-stack>
           </div>
         </s-stack>
@@ -172,7 +180,7 @@ export const SetupGuide = ({ onDismiss, onStepComplete, items }: SetupGuideProps
       {completedItemsLength === items.length ? (
         <div style={{ borderTop: '1px solid var(--p-color-border-subdued)' }}>
           <s-stack direction="inline" justifyContent="end">
-            <s-button onClick={onDismiss}>Dismiss Guide</s-button>
+            <s-button onClick={() => setLocalDismissed(true)}>Dismiss Guide</s-button>
           </s-stack>
         </div>
       ) : null}
