@@ -156,16 +156,7 @@
 
       const activePhaseNum = activeStage.stageNumber;
 
-      // Determine next phase dynamic text
-      const activeStageIndex = stages.findIndex(s => s.id === activeStage.id);
-      const nextStage = stages[activeStageIndex + 1];
-      let nextStageText = "";
-      if (nextStage) {
-        const nextLabel = nextStage.label || `Phase ${nextStage.stageNumber}`;
-        nextStageText = `${nextLabel}`;
-      } else {
-        nextStageText = "Next: Public Release starts when this ends";
-      }
+
 
       const dynamicSubtitle = `${config.subtitle}`;
 

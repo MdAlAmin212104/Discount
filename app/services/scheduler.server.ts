@@ -4,10 +4,9 @@ import { unauthenticated } from "../shopify.server";
 import {
   fetchVariantsForTargets,
   updateVariantPriceWithRetry,
-  cleanGid,
 } from "./shopify-price.server";
 import { checkAndResolveConflicts, logConflict } from "./conflict.server";
-import { JobStatus, CampaignStatus, StageStatus, LogEvent } from "@prisma/client";
+import { JobStatus, CampaignStatus, StageStatus } from "@prisma/client";
 
 let isSchedulerRunning = false;
 
@@ -28,7 +27,7 @@ export async function requeueProcessingJobs() {
 
 // Process a single scheduled stage job
 export async function processStageJob(job: any) {
-  const { id, shopId, stageId } = job;
+  const { id, stageId } = job;
   console.log(`Processing SchedulerJob ${id} for stage ${stageId}`);
 
   // Fetch campaign and stage
