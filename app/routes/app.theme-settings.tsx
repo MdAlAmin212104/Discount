@@ -713,6 +713,12 @@ export default function ThemeSettingsPage() {
           </s-card>
         </s-stack>
       </s-section>
+
+        <s-stack direction="inline" justifyContent="end" gap="base" paddingBlock="base">
+          <s-button type="submit" variant="primary" loading={isSaving ? true : undefined}>
+            Save Settings
+          </s-button>
+        </s-stack>
       </s-page>
     </form>
   );

@@ -1723,6 +1723,12 @@ export default function AdditionalPage() {
           </s-box>
         </s-card>
       </s-section>
+
+      <s-stack direction="inline" justifyContent="end" gap="base">
+        <s-button type="submit" variant="primary" loading={isSaving ? true : undefined}>
+          Save Campaign
+        </s-button>
+      </s-stack>
     </s-page>
   </form>
   );
