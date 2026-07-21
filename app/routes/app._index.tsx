@@ -5,25 +5,65 @@ import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
 import { SetupGuide } from "../components/SetupGuide";
 
+function getStartOfTodayInTz(ianaTimezone: string): Date {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: ianaTimezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = formatter.formatToParts(new Date());
+    const y = parts.find((p) => p.type === "year")?.value || "1970";
+    const m = parts.find((p) => p.type === "month")?.value || "01";
+    const d = parts.find((p) => p.type === "day")?.value || "01";
+
+    const offsetFormatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: ianaTimezone,
+      timeZoneName: "longOffset",
+    });
+    const offsetParts = offsetFormatter.formatToParts(new Date());
+    const tzPart = offsetParts.find((p) => p.type === "timeZoneName")?.value || "GMT";
+    
+    let offset = "+00:00";
+    if (tzPart !== "GMT") {
+      const cleaned = tzPart.replace("GMT", "");
+      const match = cleaned.match(/^([+-])(\d+)(?::(\d+))?$/);
+      if (match) {
+        const sign = match[1];
+        const hours = match[2].padStart(2, "0");
+        const minutes = (match[3] || "00").padStart(2, "0");
+        offset = `${sign}${hours}:${minutes}`;
+      }
+    }
+    return new Date(`${y}-${m}-${d}T00:00:00.000${offset}`);
+  } catch (e) {
+    console.error("Error calculating start of today in timezone:", e);
+    const fallback = new Date();
+    fallback.setHours(0, 0, 0, 0);
+    return fallback;
+  }
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = await getOrCreateShop(session.shop, session.accessToken || "");
 
-  const themeSettings = await prisma.themeSettings.findUnique({
-    where: { shopId: shop.id },
-  });
+  // Fast concurrent query for critical UI configuration flags
+  const [themeSettings, campaignCount] = await Promise.all([
+    prisma.themeSettings.findUnique({ where: { shopId: shop.id } }),
+    prisma.campaign.count({ where: { shopId: shop.id } }),
+  ]);
 
-  const campaignCount = await prisma.campaign.count({ where: { shopId: shop.id } });
   let updatedThemeSettings = themeSettings;
   if (campaignCount > 0 && themeSettings && !themeSettings.setupCampaignCreated) {
-    updatedThemeSettings = await prisma.themeSettings.update({
+    updatedThemeSettings = { ...themeSettings, setupCampaignCreated: true };
+    // Non-blocking background sync so loader returns instantly without side-effect latency
+    prisma.themeSettings.update({
       where: { shopId: shop.id },
       data: { setupCampaignCreated: true },
-    });
+    }).catch((err) => console.error("Non-blocking themeSettings update error:", err));
   }
-
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
 
   const next24h = new Date();
   next24h.setHours(next24h.getHours() + 24);
@@ -32,89 +72,152 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shopDomain: session.shop,
     apiKey: process.env.SHOPIFY_API_KEY || "",
     themeSettings: updatedThemeSettings,
+
+    // Streaming Deferred Data #1: Dashboard Stats (with Timezone fetching & Promise.all)
     stats: (async () => {
-      const activeCampaigns = await prisma.campaign.count({ where: { shopId: shop.id, status: "ACTIVE" } });
-      const scheduledCampaigns = await prisma.campaign.count({ where: { shopId: shop.id, status: "SCHEDULED" } });
-      const completedCampaigns = await prisma.campaign.count({ where: { shopId: shop.id, status: "COMPLETED" } });
-      const productsAffected = await prisma.campaignProduct.count({ where: { campaign: { shopId: shop.id } } });
-      const priceUpdatesToday = await prisma.activityLog.count({
-        where: { shopId: shop.id, event: "PRICE_UPDATED", createdAt: { gte: startOfToday } },
-      });
-      return { activeCampaigns, scheduledCampaigns, completedCampaigns, productsAffected, priceUpdatesToday };
+      try {
+        let ianaTimezone = "UTC";
+        try {
+          const responseShop = await admin.graphql(`#graphql
+            query getShopTimezone {
+              shop { ianaTimezone }
+            }`);
+          const shopJson = await responseShop.json();
+          ianaTimezone = shopJson.data?.shop?.ianaTimezone || "UTC";
+        } catch (e) {
+          console.error("Failed to fetch shop timezone from Shopify:", e);
+        }
+
+        const startOfToday = getStartOfTodayInTz(ianaTimezone);
+
+        const [activeCampaigns, scheduledCampaigns, productsAffected, priceUpdatesToday] = await Promise.all([
+          prisma.campaign.count({ where: { shopId: shop.id, status: "ACTIVE" } }),
+          prisma.campaign.count({ where: { shopId: shop.id, status: "SCHEDULED" } }),
+          prisma.campaignProduct.count({ where: { campaign: { shopId: shop.id } } }),
+          prisma.activityLog.count({
+            where: { shopId: shop.id, event: "PRICE_UPDATED", createdAt: { gte: startOfToday } },
+          }),
+        ]);
+
+        return { activeCampaigns, scheduledCampaigns, productsAffected, priceUpdatesToday };
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error);
+        return { activeCampaigns: 0, scheduledCampaigns: 0, productsAffected: 0, priceUpdatesToday: 0 };
+      }
     })(),
+
+    // Streaming Deferred Data #2: Upcoming Jobs
     upcomingJobs: (async () => {
-      const jobs = await prisma.schedulerJob.findMany({
-        where: { shopId: shop.id, status: "PENDING", scheduledAt: { gte: new Date(), lte: next24h } },
-        orderBy: { scheduledAt: "asc" },
-      });
-      const stageIds = jobs.map((job) => job.stageId);
-      const relatedStages = await prisma.campaignStage.findMany({
-        where: { id: { in: stageIds } },
-        include: { campaign: { select: { id: true, name: true, discountType: true } } },
-      });
-      const jobDetailsMap = relatedStages.reduce((acc: any, stage) => {
-        acc[stage.id] = {
-          campaignId: stage.campaign.id,
-          campaignName: stage.campaign.name,
-          discountType: stage.campaign.discountType,
-          stageLabel: stage.label || `Stage ${stage.stageNumber}`,
-          discountValue: stage.discountValue,
-        };
-        return acc;
-      }, {});
-      return jobs.map((job) => ({
-        ...job,
-        details: jobDetailsMap[job.stageId] || null,
-      }));
+      try {
+        const jobs = await prisma.schedulerJob.findMany({
+          where: { shopId: shop.id, status: "PENDING", scheduledAt: { gte: new Date(), lte: next24h } },
+          orderBy: { scheduledAt: "asc" },
+        });
+        const stageIds = jobs.map((job) => job.stageId);
+        const relatedStages = await prisma.campaignStage.findMany({
+          where: { id: { in: stageIds } },
+          include: { campaign: { select: { id: true, name: true, discountType: true } } },
+        });
+        const jobDetailsMap = relatedStages.reduce((acc: any, stage) => {
+          acc[stage.id] = {
+            campaignId: stage.campaign.id,
+            campaignName: stage.campaign.name,
+            discountType: stage.campaign.discountType,
+            stageLabel: stage.label || `Stage ${stage.stageNumber}`,
+            discountValue: stage.discountValue,
+          };
+          return acc;
+        }, {});
+        return jobs.map((job) => ({
+          ...job,
+          details: jobDetailsMap[job.stageId] || null,
+        }));
+      } catch (error) {
+        console.error("Failed to fetch upcoming jobs:", error);
+        return [];
+      }
     })(),
-    recentlyCompleted: Promise.resolve(prisma.campaign.findMany({
-      where: { shopId: shop.id, status: "COMPLETED" },
-      orderBy: { updatedAt: "desc" },
-    })),
-    activeCampaignsList: Promise.resolve(prisma.campaign.findMany({
-      where: { shopId: shop.id, status: "ACTIVE" },
-      include: { stages: { orderBy: { stageNumber: "asc" } } },
-    })),
+
+    // Streaming Deferred Data #3: Recently Completed Campaigns
+    recentlyCompleted: (async () => {
+      try {
+        return await prisma.campaign.findMany({
+          where: { shopId: shop.id, status: "COMPLETED" },
+          orderBy: { updatedAt: "desc" },
+        });
+      } catch (error) {
+        console.error("Failed to fetch recently completed campaigns:", error);
+        return [];
+      }
+    })(),
+
+    // Streaming Deferred Data #4: Active Campaigns List
+    activeCampaignsList: (async () => {
+      try {
+        return await prisma.campaign.findMany({
+          where: { shopId: shop.id, status: "ACTIVE" },
+          include: { stages: { orderBy: { stageNumber: "asc" } } },
+        });
+      } catch (error) {
+        console.error("Failed to fetch active campaigns list:", error);
+        return [];
+      }
+    })(),
   };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const shop = await getOrCreateShop(session.shop, session.accessToken || "");
-  const formData = await request.formData();
-  const actionType = formData.get("actionType");
+  try {
+    const { session } = await authenticate.admin(request);
+    const shop = await getOrCreateShop(session.shop, session.accessToken || "");
+    const formData = await request.formData();
+    const actionType = formData.get("actionType");
 
-  if (actionType === "updateSetupStep") {
-    const stepId = formData.get("stepId");
-    const complete = formData.get("complete") === "true";
+    if (actionType === "updateSetupStep") {
+      const stepId = formData.get("stepId");
+      const complete = formData.get("complete") === "true";
 
-    const updateData: any = {};
-    if (stepId === "campaign") updateData.setupCampaignCreated = complete;
-    if (stepId === "theme") updateData.setupThemeAdded = complete;
-    if (stepId === "customize") updateData.setupThemeCustomized = complete;
+      const updateData: any = {};
+      if (stepId === "campaign") updateData.setupCampaignCreated = complete;
+      if (stepId === "theme") updateData.setupThemeAdded = complete;
+      if (stepId === "customize") updateData.setupThemeCustomized = complete;
 
-    const updated = await prisma.themeSettings.update({
-      where: { shopId: shop.id },
-      data: updateData,
-    });
+      try {
+        const updated = await prisma.themeSettings.update({
+          where: { shopId: shop.id },
+          data: updateData,
+        });
 
-    const redirectTo = formData.get("redirectTo")?.toString();
-    if (redirectTo) {
-      return redirect(redirectTo);
+        const redirectTo = formData.get("redirectTo")?.toString();
+        if (redirectTo) {
+          return redirect(redirectTo);
+        }
+        return { success: true, themeSettings: updated };
+      } catch (error) {
+        console.error("Failed to update setup step theme settings:", error);
+        return { success: false, error: "Failed to update setup step settings" };
+      }
     }
-    return { success: true, themeSettings: updated };
-  }
 
-  if (actionType === "dismissSetupGuide") {
-    const dismissed = formData.get("dismissed") === "true";
-    const updated = await prisma.themeSettings.update({
-      where: { shopId: shop.id },
-      data: { setupGuideDismissed: dismissed },
-    });
-    return { success: true, themeSettings: updated };
-  }
+    if (actionType === "dismissSetupGuide") {
+      const dismissed = formData.get("dismissed") === "true";
+      try {
+        const updated = await prisma.themeSettings.update({
+          where: { shopId: shop.id },
+          data: { setupGuideDismissed: dismissed },
+        });
+        return { success: true, themeSettings: updated };
+      } catch (error) {
+        console.error("Failed to dismiss setup guide theme settings:", error);
+        return { success: false, error: "Failed to dismiss setup guide" };
+      }
+    }
 
-  return { error: "Unknown action" };
+    return { success: false, error: "Unknown action" };
+  } catch (globalError) {
+    console.error("Global action error in dashboard:", globalError);
+    return { success: false, error: "Internal server error" };
+  }
 };
 
 
@@ -260,23 +363,6 @@ function ActiveCampaignsSection({ campaigns, getCampaignProgress, getActiveStage
         <s-divider />
 
         {campaigns.length === 0 ? (
-          // <s-box paddingBlock="large">
-          //   <s-empty-state
-          //     heading="No active campaigns"
-          //     image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-          //   >
-          //     <s-text color="subdued" >
-          //       Start your first campaign to boost sales with automated discounts.
-          //     </s-text>
-          //     <s-button
-          //       slot="action"
-          //       variant="primary"
-          //       onClick={() => navigate("/app/campaigns/new")}
-          //     >
-          //       Create Campaign
-          //     </s-button>
-          //   </s-empty-state>
-          // </s-box>
           <s-grid gap="base" justifyItems="center" paddingBlock="large-400">
             <s-box maxInlineSize="200px" maxBlockSize="200px">
               {/* aspectRatio should match the actual image dimensions (width/height) */}
