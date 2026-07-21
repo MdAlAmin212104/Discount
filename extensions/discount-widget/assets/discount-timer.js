@@ -1,173 +1,9 @@
-(function() {
-  document.addEventListener("DOMContentLoaded", function() {
-    const containers = document.querySelectorAll(".discountflow-widget-container");
-    if (containers.length === 0) return;
-
-    containers.forEach(container => {
-      const shop = container.getAttribute("data-shop");
-      const productId = container.getAttribute("data-product-id");
-      const moneyFormat = container.getAttribute("data-money-format") || "${{amount}}";
-
-      if (!shop || !productId) return;
-
-      // Initial fetch with the default selected variant
-      let currentVariantId = container.getAttribute("data-variant-id") || "";
-      fetchAndRender(container, shop, productId, currentVariantId, moneyFormat);
-
-      // Re-fetch when shopper changes the variant selector
-      // Shopify themes dispatch a native 'change' on select[name="id"] or
-      // a custom 'variant:changed' / 'variantChange' event
-      function onVariantChange(e) {
-        let variantId = "";
-        if (e.detail && e.detail.variant && e.detail.variant.id) {
-          variantId = String(e.detail.variant.id);
-        } else if (e.target && e.target.name === "id") {
-          variantId = e.target.value;
-        }
-        if (variantId && variantId !== currentVariantId) {
-          currentVariantId = variantId;
-          container.style.display = "none";
-          container.innerHTML = "";
-          fetchAndRender(container, shop, productId, currentVariantId, moneyFormat);
-        }
-      }
-
-      document.addEventListener("variant:changed", onVariantChange);
-      document.addEventListener("variantChange", onVariantChange);
-      // Dawn / Debut themes use a <select name="id"> change
-      document.querySelectorAll('select[name="id"], input[name="id"]').forEach(el => {
-        el.addEventListener("change", onVariantChange);
-      });
-    });
-
-    function fetchAndRender(container, shop, productId, variantId, moneyFormat) {
-      const isDesignMode = container.getAttribute("data-design-mode") === "true";
-      let fetchUrl = `/apps/discount-showcase/products?shop=${shop}&productId=${productId}`;
-      if (variantId) fetchUrl += `&variantId=${variantId}`;
-
-      fetch(fetchUrl)
-        .then(res => res.json())
-        .then(data => {
-          if (data.error || !data.stages || data.stages.length === 0) {
-            if (isDesignMode) {
-              renderWarningBanner(container);
-            } else {
-              container.style.display = "none";
-            }
-            return;
-          }
-
-          renderTimerWidget(container, data, moneyFormat);
-        })
-        .catch(err => {
-          console.error("Error loading discount timer:", err);
-          if (isDesignMode) {
-            renderWarningBanner(container);
-          } else {
-            container.style.display = "none";
-          }
-        });
-    }
-
-    function formatMoney(amountVal, formatStr) {
-      let amount = parseFloat(amountVal).toFixed(2);
-      return formatStr
-        .replace('{{amount}}', amount)
-        .replace('{{amount_no_decimals}}', Math.round(amount))
-        .replace('{{amount_with_comma_separator}}', amount.replace('.', ','))
-        .replace('${amount}', amount);
-    }
-
-    function calculatePrice(originalPrice, discountValue, discountType) {
-      let price = parseFloat(originalPrice);
-      if (discountType === "PERCENTAGE") {
-        return price * (1 - parseFloat(discountValue) / 100);
-      } else if (discountType === "FIX_AMOUNT") {
-        return parseFloat(discountValue);
-      }
-      return price;
-    }
-
-    function renderTimerWidget(container, data, moneyFormat) {
-      const stages = data.stages || [];
-      const settings = data.settings || {};
-      const discountType = data.discountType || "PERCENTAGE";
-
-      const resolvedProduct = data.products && data.products[0];
-      const originalPrice = resolvedProduct ? parseFloat(resolvedProduct.originalPrice) : parseFloat(container.getAttribute("data-product-price") || "0");
-
-      if (isNaN(originalPrice) || originalPrice <= 0) return;
-
-      // 1. Resolve configuration strictly from database settings payload
-      const config = {
-        title: settings.welcomeHeading || "Limited time offer",
-        subtitle: settings.countdownText || "Sale ends in:",
-        bgColor: settings.bgColor || "#8b5cf6",
-        textColor: settings.textColor || "#ffffff",
-        cardBgColor: settings.cardColor || "#faf9f7",
-        accentColor: settings.accentColor || "#7c3aed",
-        mutedColor: settings.mutedColor || "#6b7280",
-        borderColor: settings.borderColor || "#e2dfd9",
-        salePriceColor: settings.salePriceColor || "#E63946",
-        originalPriceColor: settings.originalPriceColor || "#6B7280",
-        borderRadius: settings.borderRadius || 16,
-        maxWidth: settings.maxWidth || 580,
-        paddingTop: settings.paddingTop || 40,
-        paddingBottom: settings.paddingBottom || 40,
-      };
-
-      // Set CSS Variables for styling
-      container.style.setProperty('--sds-bg-color', config.bgColor);
-      container.style.setProperty('--sds-bg-gradient', `linear-gradient(135deg, ${config.bgColor}, ${config.accentColor})`);
-      container.style.setProperty('--sds-text-color', config.textColor);
-      container.style.setProperty('--sds-card-color', config.cardBgColor);
-      container.style.setProperty('--sds-accent-color', config.accentColor);
-      container.style.setProperty('--sds-muted-color', config.mutedColor);
-      container.style.setProperty('--sds-border-color', config.borderColor);
-      container.style.setProperty('--sds-sale-color', config.salePriceColor);
-      container.style.setProperty('--sds-original-color', config.originalPriceColor);
-      container.style.setProperty('--sds-border-radius', config.borderRadius + 'px');
-      container.style.setProperty('--sds-max-width', config.maxWidth + 'px');
-      container.style.setProperty('--sds-padding-top', config.paddingTop + 'px');
-      container.style.setProperty('--sds-padding-bottom', config.paddingBottom + 'px');
-
-      if (settings.customCss) {
-        let styleTag = document.getElementById('discountflow-custom-css');
-        if (!styleTag) {
-          styleTag = document.createElement('style');
-          styleTag.id = 'discountflow-custom-css';
-          document.head.appendChild(styleTag);
-        }
-        styleTag.innerHTML = settings.customCss;
-      }
-
-      // 2. Identify Active Stage
-      const now = new Date();
-      const activeStage = stages.find(s => new Date(s.startDate) <= now && new Date(s.endDate) >= now);
-      if (!activeStage) {
-        const isDesignMode = container.getAttribute("data-design-mode") === "true";
-        if (isDesignMode) {
-          renderWarningBanner(container);
-        } else {
-          container.style.display = "none";
-        }
-        return;
-      }
-
-      const activePhaseNum = activeStage.stageNumber;
-
-      const dynamicSubtitle = `${config.subtitle}`;
-
-      // 3. Generate HTML
-      let html = `<div class="discountflow-timeline-wrapper">`;
-
-      // --- Active Timer Card ---
-      html += `
+"use strict";(function(){document.addEventListener("DOMContentLoaded",function(){const w=document.querySelectorAll(".discountflow-widget-container");if(w.length===0)return;w.forEach(e=>{const d=e.getAttribute("data-shop"),i=e.getAttribute("data-product-id"),l=e.getAttribute("data-money-format")||"${{amount}}";if(!d||!i)return;let s=e.getAttribute("data-variant-id")||"";b(e,d,i,s,l);function a(r){let t="";r.detail&&r.detail.variant&&r.detail.variant.id?t=String(r.detail.variant.id):r.target&&r.target.name==="id"&&(t=r.target.value),t&&t!==s&&(s=t,e.style.display="none",e.innerHTML="",b(e,d,i,s,l))}document.addEventListener("variant:changed",a),document.addEventListener("variantChange",a),document.querySelectorAll('select[name="id"], input[name="id"]').forEach(r=>{r.addEventListener("change",a)})});function b(e,d,i,l,s){const a=e.getAttribute("data-design-mode")==="true";let r=`/apps/discount-showcase/products?shop=${d}&productId=${i}`;l&&(r+=`&variantId=${l}`),fetch(r).then(t=>t.json()).then(t=>{if(t.error||!t.stages||t.stages.length===0){a?f(e):e.style.display="none";return}x(e,t,s)}).catch(t=>{console.error("Error loading discount timer:",t),a?f(e):e.style.display="none"})}function h(e,d){let i=parseFloat(e).toFixed(2);return d.replace("{{amount}}",i).replace("{{amount_no_decimals}}",Math.round(i)).replace("{{amount_with_comma_separator}}",i.replace(".",",")).replace("${amount}",i)}function C(e,d,i){let l=parseFloat(e);return i==="PERCENTAGE"?l*(1-parseFloat(d)/100):i==="FIX_AMOUNT"?parseFloat(d):l}function x(e,d,i){const l=d.stages||[],s=d.settings||{},a=d.discountType||"PERCENTAGE",r=d.products&&d.products[0],t=parseFloat(r?r.originalPrice:e.getAttribute("data-product-price")||"0");if(isNaN(t)||t<=0)return;const n={title:s.welcomeHeading||"Limited time offer",subtitle:s.countdownText||"Sale ends in:",bgColor:s.bgColor||"#8b5cf6",textColor:s.textColor||"#ffffff",cardBgColor:s.cardColor||"#faf9f7",accentColor:s.accentColor||"#7c3aed",mutedColor:s.mutedColor||"#6b7280",borderColor:s.borderColor||"#e2dfd9",salePriceColor:s.salePriceColor||"#E63946",originalPriceColor:s.originalPriceColor||"#6B7280",borderRadius:s.borderRadius||16,maxWidth:s.maxWidth||580,paddingTop:s.paddingTop||40,paddingBottom:s.paddingBottom||40};if(e.style.setProperty("--sds-bg-color",n.bgColor),e.style.setProperty("--sds-bg-gradient",`linear-gradient(135deg, ${n.bgColor}, ${n.accentColor})`),e.style.setProperty("--sds-text-color",n.textColor),e.style.setProperty("--sds-card-color",n.cardBgColor),e.style.setProperty("--sds-accent-color",n.accentColor),e.style.setProperty("--sds-muted-color",n.mutedColor),e.style.setProperty("--sds-border-color",n.borderColor),e.style.setProperty("--sds-sale-color",n.salePriceColor),e.style.setProperty("--sds-original-color",n.originalPriceColor),e.style.setProperty("--sds-border-radius",n.borderRadius+"px"),e.style.setProperty("--sds-max-width",n.maxWidth+"px"),e.style.setProperty("--sds-padding-top",n.paddingTop+"px"),e.style.setProperty("--sds-padding-bottom",n.paddingBottom+"px"),s.customCss){let o=document.getElementById("discountflow-custom-css");o||(o=document.createElement("style"),o.id="discountflow-custom-css",document.head.appendChild(o)),o.innerHTML=s.customCss}const c=new Date,u=l.find(o=>new Date(o.startDate)<=c&&new Date(o.endDate)>=c);if(!u){e.getAttribute("data-design-mode")==="true"?f(e):e.style.display="none";return}const v=u.stageNumber,y=`${n.subtitle}`;let p='<div class="discountflow-timeline-wrapper">';p+=`
         <div class="discountflow-active-timer-card">
-          <div class="discountflow-active-timer-title">${config.title}</div>
-          <div class="discountflow-active-timer-subtitle">${dynamicSubtitle}</div>
+          <div class="discountflow-active-timer-title">${n.title}</div>
+          <div class="discountflow-active-timer-subtitle">${y}</div>
           
-          <div class="sds-countdown" data-sds-countdown="${activeStage.endDate}">
+          <div class="sds-countdown" data-sds-countdown="${u.endDate}">
             <div class="sds-countdown-col">
               <span class="sds-countdown-num" data-days>00</span>
               <span class="sds-countdown-lbl">Days</span>
@@ -189,124 +25,29 @@
             </div>
           </div>
         </div>
-      `;
-
-      // --- Subsequent Drops & Releases List ---
-      let listHtml = `<div class="discountflow-releases-list">`;
-
-      // Loop remaining stages
-      stages.forEach(stage => {
-        if (stage.stageNumber > activePhaseNum) {
-          const upcomingSalePrice = calculatePrice(originalPrice, stage.discountValue, discountType);
-          const prevStageLabel = stages.find(s => s.stageNumber === stage.stageNumber - 1)?.label || `Drop ${stage.stageNumber - 1}`;
-          
-          const eyebrow = stage.shippingNoteLeft || `DROP ${stage.stageNumber} - OPENS AFTER ${prevStageLabel.toUpperCase()}`;
-          const title = stage.phaseTitle || stage.label || `Drop ${stage.stageNumber}`;
-          const rightPrice = formatMoney(upcomingSalePrice, moneyFormat);
-          const rightShipping = stage.shippingNoteRight || `Ships in ~${stage.stageNumber * 15} days`;
-
-          listHtml += `
+      `;let g='<div class="discountflow-releases-list">';l.forEach(o=>{if(o.stageNumber>v){const D=C(t,o.discountValue,a),M=l.find(B=>B.stageNumber===o.stageNumber-1)?.label||`Drop ${o.stageNumber-1}`,N=o.shippingNoteLeft||`DROP ${o.stageNumber} - OPENS AFTER ${M.toUpperCase()}`,L=o.phaseTitle||o.label||`Drop ${o.stageNumber}`,A=h(D,i),R=o.shippingNoteRight||`Ships in ~${o.stageNumber*15} days`;g+=`
             <div class="discountflow-release-row">
               <div class="discountflow-release-left">
-                <div class="discountflow-release-eyebrow">${eyebrow}</div>
-                <div class="discountflow-release-title">${title}</div>
+                <div class="discountflow-release-eyebrow">${N}</div>
+                <div class="discountflow-release-title">${L}</div>
               </div>
               <div class="discountflow-release-right">
-                <div class="sds-release-price">${rightPrice}</div>
-                <div class="discountflow-release-shipping">${rightShipping}</div>
+                <div class="sds-release-price">${A}</div>
+                <div class="discountflow-release-shipping">${R}</div>
               </div>
             </div>
-          `;
-        }
-      });
-
-      // Public Release row (originalPrice)
-      const publicEyebrow = `DROP ${stages.length + 1} - PUBLIC RELEASE`;
-      const publicTitle = "Open To The Public";
-      const publicPrice = formatMoney(originalPrice, moneyFormat);
-      const publicShipping = settings.publicShipping !== undefined ? settings.publicShipping : "Ships in ~5-7 days";
-      let shippingHtml = "";
-      if (publicShipping && publicShipping.trim() !== "") {
-        shippingHtml = `<div class="discountflow-release-shipping">${publicShipping}</div>`;
-      }
-
-      listHtml += `
+          `}});const T=`DROP ${l.length+1} - PUBLIC RELEASE`,E="Open To The Public",$=h(t,i),m=s.publicShipping!==void 0?s.publicShipping:"Ships in ~5-7 days";let P="";m&&m.trim()!==""&&(P=`<div class="discountflow-release-shipping">${m}</div>`),g+=`
         <div class="discountflow-release-row public-release">
           <div class="discountflow-release-left">
-            <div class="discountflow-release-eyebrow">${publicEyebrow}</div>
-            <div class="discountflow-release-title">${publicTitle}</div>
+            <div class="discountflow-release-eyebrow">${T}</div>
+            <div class="discountflow-release-title">${E}</div>
           </div>
           <div class="discountflow-release-right">
-            <div class="sds-release-price regular-price">${publicPrice}</div>
-            ${shippingHtml}
+            <div class="sds-release-price regular-price">${$}</div>
+            ${P}
           </div>
         </div>
-      `;
-
-      listHtml += `</div>`;
-      html += listHtml;
-      html += `</div>`;
-
-      container.innerHTML = html;
-      container.style.display = "block";
-
-      // 4. Start the countdown clock
-      setupCountdown(container.querySelector(`[data-sds-countdown]`), activeStage.endDate);
-    }
-
-    function setupCountdown(element, endDateStr) {
-      if (!element) return;
-
-      const endMs = new Date(endDateStr).getTime();
-      const daysEl = element.querySelector("[data-days]");
-      const hoursEl = element.querySelector("[data-hours]");
-      const minsEl = element.querySelector("[data-mins]");
-      const secsEl = element.querySelector("[data-secs]");
-
-      function updateClock() {
-        const diff = endMs - Date.now();
-        if (diff <= 0) {
-          if (daysEl) daysEl.innerText = "00";
-          if (hoursEl) hoursEl.innerText = "00";
-          if (minsEl) minsEl.innerText = "00";
-          if (secsEl) secsEl.innerText = "00";
-          clearInterval(interval);
-          return;
-        }
-
-        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
-        const m = Math.floor((diff / (1000 * 60)) % 60);
-        const s = Math.floor((diff / 1000) % 60);
-
-        if (daysEl) daysEl.innerText = String(d).padStart(2, "0");
-        if (hoursEl) hoursEl.innerText = String(h).padStart(2, "0");
-        if (minsEl) minsEl.innerText = String(m).padStart(2, "0");
-        if (secsEl) secsEl.innerText = String(s).padStart(2, "0");
-      }
-
-      updateClock();
-      const interval = setInterval(updateClock, 1000);
-    }
-
-    function renderWarningBanner(container) {
-      container.style.removeProperty('--sds-bg-color');
-      container.style.removeProperty('--sds-bg-gradient');
-      container.style.removeProperty('--sds-text-color');
-      container.style.removeProperty('--sds-card-color');
-      container.style.removeProperty('--sds-accent-color');
-      container.style.removeProperty('--sds-muted-color');
-      container.style.removeProperty('--sds-border-color');
-      container.style.removeProperty('--sds-sale-color');
-      container.style.removeProperty('--sds-original-color');
-      
-      container.style.padding = "0";
-      container.style.background = "transparent";
-      container.style.border = "none";
-      container.style.boxShadow = "none";
-      container.style.display = "block";
-
-      container.innerHTML = `
+      `,g+="</div>",p+=g,p+="</div>",e.innerHTML=p,e.style.display="block",S(e.querySelector("[data-sds-countdown]"),u.endDate)}function S(e,d){if(!e)return;const i=new Date(d).getTime(),l=e.querySelector("[data-days]"),s=e.querySelector("[data-hours]"),a=e.querySelector("[data-mins]"),r=e.querySelector("[data-secs]");function t(){const c=i-Date.now();if(c<=0){l&&(l.innerText="00"),s&&(s.innerText="00"),a&&(a.innerText="00"),r&&(r.innerText="00"),clearInterval(n);return}const u=Math.floor(c/(1e3*60*60*24)),v=Math.floor(c/(1e3*60*60)%24),y=Math.floor(c/(1e3*60)%60),p=Math.floor(c/1e3%60);l&&(l.innerText=String(u).padStart(2,"0")),s&&(s.innerText=String(v).padStart(2,"0")),a&&(a.innerText=String(y).padStart(2,"0")),r&&(r.innerText=String(p).padStart(2,"0"))}t();const n=setInterval(t,1e3)}function f(e){e.style.removeProperty("--sds-bg-color"),e.style.removeProperty("--sds-bg-gradient"),e.style.removeProperty("--sds-text-color"),e.style.removeProperty("--sds-card-color"),e.style.removeProperty("--sds-accent-color"),e.style.removeProperty("--sds-muted-color"),e.style.removeProperty("--sds-border-color"),e.style.removeProperty("--sds-sale-color"),e.style.removeProperty("--sds-original-color"),e.style.padding="0",e.style.background="transparent",e.style.border="none",e.style.boxShadow="none",e.style.display="block",e.innerHTML=`
         <div class="discountflow-warning-banner">
           <div class="discountflow-warning-icon-box">
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -319,7 +60,4 @@
             Discount timer widget will only show on products that have an active discount campaign.
           </div>
         </div>
-      `;
-    }
-  });
-})();
+      `}})})();
