@@ -84,6 +84,8 @@
         return price * (1 - parseFloat(discountValue) / 100);
       } else if (discountType === "FIX_AMOUNT") {
         return parseFloat(discountValue);
+      } else if (discountType === "FIXED_DISCOUNT") {
+        return Math.max(0, price - parseFloat(discountValue));
       }
       return price;
     }
