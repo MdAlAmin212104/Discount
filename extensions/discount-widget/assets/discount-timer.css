@@ -1,152 +1,152 @@
-.discount-timer-container {
+.discountflow-widget-container {
   box-sizing: border-box;
   font-family: inherit;
   margin: 20px auto;
   width: 100%;
-  max-width: var(--dt-max-width, 580px);
-  padding-top: var(--dt-padding-top, 40px);
-  padding-bottom: var(--dt-padding-bottom, 40px);
+  max-width: var(--sds-max-width, 580px);
+  padding-top: var(--sds-padding-top, 40px);
+  padding-bottom: var(--sds-padding-bottom, 40px);
   padding-left: 20px;
   padding-right: 20px;
-  background: var(--dt-card-color);
-  border-radius: var(--dt-border-radius, 10px);
-  border: 1px solid var(--dt-border-color, #e2dfd9);
+  background: var(--sds-card-color);
+  border-radius: var(--sds-border-radius, 10px);
+  border: 1px solid var(--sds-border-color, #e2dfd9);
 }
 
-.dt-timeline-wrapper {
+.discountflow-timeline-wrapper {
   display: flex;
   flex-direction: column;
   width: 100%;
 }
 
-.dt-active-timer-card {
+.discountflow-active-timer-card {
   box-sizing: border-box;
   text-align: center;
   padding: 24px 20px;
-  background-color: var(--dt-bg-color, #8b5cf6);
-  background-image: var(--dt-bg-gradient, linear-gradient(135deg, #8b5cf6, #7c3aed));
-  color: var(--dt-text-color, #ffffff);
-  border-radius: var(--dt-border-radius, 16px);
+  background-color: var(--sds-bg-color, #8b5cf6);
+  background-image: var(--sds-bg-gradient, linear-gradient(135deg, #8b5cf6, #7c3aed));
+  color: var(--sds-text-color, #ffffff);
+  border-radius: var(--sds-border-radius, 16px);
   margin-bottom: 24px;
 }
 
-.dt-active-timer-title {
+.discountflow-active-timer-title {
   font-size: 24px;
   font-weight: 700;
   margin-bottom: 4px;
-  color: var(--dt-text-color, #ffffff);
+  color: var(--sds-text-color, #ffffff);
 }
 
-.dt-active-timer-subtitle {
+.discountflow-active-timer-subtitle {
   font-size: 13px;
   opacity: 0.85;
   margin-bottom: 20px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--dt-text-color, #ffffff);
+  color: var(--sds-text-color, #ffffff);
 }
 
-.dt-active-timer-countdown {
+.sds-countdown {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 12px;
 }
 
-.dt-countdown-col {
+.sds-countdown-col {
   display: flex;
   flex-direction: column;
   align-items: center;
   min-width: 50px;
 }
 
-.dt-countdown-num {
+.sds-countdown-num {
   font-size: 36px;
   font-weight: 700;
   line-height: 1;
-  color: var(--dt-text-color, #ffffff);
+  color: var(--sds-text-color, #ffffff);
 }
 
-.dt-countdown-lbl {
+.sds-countdown-lbl {
   font-size: 10px;
   font-weight: 500;
   opacity: 0.7;
   text-transform: uppercase;
   margin-top: 6px;
   letter-spacing: 0.05em;
-  color: var(--dt-text-color, #ffffff);
+  color: var(--sds-text-color, #ffffff);
 }
 
-.dt-countdown-sep {
+.sds-countdown-sep {
   font-size: 32px;
   font-weight: 700;
   line-height: 1;
   opacity: 0.8;
   position: relative;
   top: -8px;
-  color: var(--dt-text-color, #ffffff);
+  color: var(--sds-text-color, #ffffff);
 }
 
-.dt-releases-list {
+.discountflow-releases-list {
   display: flex;
   flex-direction: column;
   width: 100%;
 }
 
-.dt-release-row {
+.discountflow-release-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 16px 0;
-  border-bottom: 1px solid var(--dt-border-color, #e2dfd9);
+  border-bottom: 1px solid var(--sds-border-color, #e2dfd9);
 }
 
-.dt-release-row:last-child {
+.discountflow-release-row:last-child {
   border-bottom: none;
 }
 
-.dt-release-left {
+.discountflow-release-left {
   display: flex;
   flex-direction: column;
   gap: 4px;
   text-align: left;
 }
 
-.dt-release-eyebrow {
+.discountflow-release-eyebrow {
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--dt-muted-color, #9a9792);
+  color: var(--sds-muted-color, #9a9792);
 }
 
-.dt-release-title {
+.discountflow-release-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--dt-sale-color, #E63946);
+  color: var(--sds-sale-color, #E63946);
 }
 
-.dt-release-right {
+.discountflow-release-right {
   display: flex;
   flex-direction: column;
   gap: 4px;
   text-align: right;
 }
 
-.dt-release-price {
+.sds-release-price {
   font-family: Georgia, Garamond, serif;
   font-size: 18px;
   font-weight: 600;
-  color: var(--dt-original-color, #6B7280);
+  color: var(--sds-original-color, #6B7280);
 }
 
-.dt-release-shipping {
+.discountflow-release-shipping {
   font-size: 11px;
-  color: var(--dt-muted-color, #9a9792);
+  color: var(--sds-muted-color, #9a9792);
 }
 
 /* Warning / Placeholder Banner style in Customize Editor */
-.dt-warning-banner {
+.discountflow-warning-banner {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -158,7 +158,7 @@
   width: 100%;
 }
 
-.dt-warning-icon-box {
+.discountflow-warning-icon-box {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -170,12 +170,12 @@
   flex-shrink: 0;
 }
 
-.dt-warning-icon-box svg {
+.discountflow-warning-icon-box svg {
   width: 20px;
   height: 20px;
 }
 
-.dt-warning-text {
+.discountflow-warning-text {
   font-size: 14px;
   color: #303030;
   line-height: 1.4;

@@ -1,6 +1,6 @@
 (function() {
   document.addEventListener("DOMContentLoaded", function() {
-    const containers = document.querySelectorAll(".discount-timer-container");
+    const containers = document.querySelectorAll(".discountflow-widget-container");
     if (containers.length === 0) return;
 
     containers.forEach(container => {
@@ -117,25 +117,25 @@
       };
 
       // Set CSS Variables for styling
-      container.style.setProperty('--dt-bg-color', config.bgColor);
-      container.style.setProperty('--dt-bg-gradient', `linear-gradient(135deg, ${config.bgColor}, ${config.accentColor})`);
-      container.style.setProperty('--dt-text-color', config.textColor);
-      container.style.setProperty('--dt-card-color', config.cardBgColor);
-      container.style.setProperty('--dt-accent-color', config.accentColor);
-      container.style.setProperty('--dt-muted-color', config.mutedColor);
-      container.style.setProperty('--dt-border-color', config.borderColor);
-      container.style.setProperty('--dt-sale-color', config.salePriceColor);
-      container.style.setProperty('--dt-original-color', config.originalPriceColor);
-      container.style.setProperty('--dt-border-radius', config.borderRadius + 'px');
-      container.style.setProperty('--dt-max-width', config.maxWidth + 'px');
-      container.style.setProperty('--dt-padding-top', config.paddingTop + 'px');
-      container.style.setProperty('--dt-padding-bottom', config.paddingBottom + 'px');
+      container.style.setProperty('--sds-bg-color', config.bgColor);
+      container.style.setProperty('--sds-bg-gradient', `linear-gradient(135deg, ${config.bgColor}, ${config.accentColor})`);
+      container.style.setProperty('--sds-text-color', config.textColor);
+      container.style.setProperty('--sds-card-color', config.cardBgColor);
+      container.style.setProperty('--sds-accent-color', config.accentColor);
+      container.style.setProperty('--sds-muted-color', config.mutedColor);
+      container.style.setProperty('--sds-border-color', config.borderColor);
+      container.style.setProperty('--sds-sale-color', config.salePriceColor);
+      container.style.setProperty('--sds-original-color', config.originalPriceColor);
+      container.style.setProperty('--sds-border-radius', config.borderRadius + 'px');
+      container.style.setProperty('--sds-max-width', config.maxWidth + 'px');
+      container.style.setProperty('--sds-padding-top', config.paddingTop + 'px');
+      container.style.setProperty('--sds-padding-bottom', config.paddingBottom + 'px');
 
       if (settings.customCss) {
-        let styleTag = document.getElementById('dt-custom-css');
+        let styleTag = document.getElementById('discountflow-custom-css');
         if (!styleTag) {
           styleTag = document.createElement('style');
-          styleTag.id = 'dt-custom-css';
+          styleTag.id = 'discountflow-custom-css';
           document.head.appendChild(styleTag);
         }
         styleTag.innerHTML = settings.customCss;
@@ -156,45 +156,43 @@
 
       const activePhaseNum = activeStage.stageNumber;
 
-
-
       const dynamicSubtitle = `${config.subtitle}`;
 
       // 3. Generate HTML
-      let html = `<div class="dt-timeline-wrapper">`;
+      let html = `<div class="discountflow-timeline-wrapper">`;
 
       // --- Active Timer Card ---
       html += `
-        <div class="dt-active-timer-card">
-          <div class="dt-active-timer-title">${config.title}</div>
-          <div class="dt-active-timer-subtitle">${dynamicSubtitle}</div>
+        <div class="discountflow-active-timer-card">
+          <div class="discountflow-active-timer-title">${config.title}</div>
+          <div class="discountflow-active-timer-subtitle">${dynamicSubtitle}</div>
           
-          <div class="dt-active-timer-countdown" data-dt-countdown="${activeStage.endDate}">
-            <div class="dt-countdown-col">
-              <span class="dt-countdown-num" data-days>00</span>
-              <span class="dt-countdown-lbl">Days</span>
+          <div class="sds-countdown" data-sds-countdown="${activeStage.endDate}">
+            <div class="sds-countdown-col">
+              <span class="sds-countdown-num" data-days>00</span>
+              <span class="sds-countdown-lbl">Days</span>
             </div>
-            <span class="dt-countdown-sep">:</span>
-            <div class="dt-countdown-col">
-              <span class="dt-countdown-num" data-hours>00</span>
-              <span class="dt-countdown-lbl">Hrs</span>
+            <span class="sds-countdown-sep">:</span>
+            <div class="sds-countdown-col">
+              <span class="sds-countdown-num" data-hours>00</span>
+              <span class="sds-countdown-lbl">Hrs</span>
             </div>
-            <span class="dt-countdown-sep">:</span>
-            <div class="dt-countdown-col">
-              <span class="dt-countdown-num" data-mins>00</span>
-              <span class="dt-countdown-lbl">Mins</span>
+            <span class="sds-countdown-sep">:</span>
+            <div class="sds-countdown-col">
+              <span class="sds-countdown-num" data-mins>00</span>
+              <span class="sds-countdown-lbl">Mins</span>
             </div>
-            <span class="dt-countdown-sep">:</span>
-            <div class="dt-countdown-col">
-              <span class="dt-countdown-num" data-secs>00</span>
-              <span class="dt-countdown-lbl">Secs</span>
+            <span class="sds-countdown-sep">:</span>
+            <div class="sds-countdown-col">
+              <span class="sds-countdown-num" data-secs>00</span>
+              <span class="sds-countdown-lbl">Secs</span>
             </div>
           </div>
         </div>
       `;
 
       // --- Subsequent Drops & Releases List ---
-      let listHtml = `<div class="dt-releases-list">`;
+      let listHtml = `<div class="discountflow-releases-list">`;
 
       // Loop remaining stages
       stages.forEach(stage => {
@@ -208,14 +206,14 @@
           const rightShipping = stage.shippingNoteRight || `Ships in ~${stage.stageNumber * 15} days`;
 
           listHtml += `
-            <div class="dt-release-row">
-              <div class="dt-release-left">
-                <div class="dt-release-eyebrow">${eyebrow}</div>
-                <div class="dt-release-title">${title}</div>
+            <div class="discountflow-release-row">
+              <div class="discountflow-release-left">
+                <div class="discountflow-release-eyebrow">${eyebrow}</div>
+                <div class="discountflow-release-title">${title}</div>
               </div>
-              <div class="dt-release-right">
-                <div class="dt-release-price">${rightPrice}</div>
-                <div class="dt-release-shipping">${rightShipping}</div>
+              <div class="discountflow-release-right">
+                <div class="sds-release-price">${rightPrice}</div>
+                <div class="discountflow-release-shipping">${rightShipping}</div>
               </div>
             </div>
           `;
@@ -229,17 +227,17 @@
       const publicShipping = settings.publicShipping !== undefined ? settings.publicShipping : "Ships in ~5-7 days";
       let shippingHtml = "";
       if (publicShipping && publicShipping.trim() !== "") {
-        shippingHtml = `<div class="dt-release-shipping">${publicShipping}</div>`;
+        shippingHtml = `<div class="discountflow-release-shipping">${publicShipping}</div>`;
       }
 
       listHtml += `
-        <div class="dt-release-row public-release">
-          <div class="dt-release-left">
-            <div class="dt-release-eyebrow">${publicEyebrow}</div>
-            <div class="dt-release-title">${publicTitle}</div>
+        <div class="discountflow-release-row public-release">
+          <div class="discountflow-release-left">
+            <div class="discountflow-release-eyebrow">${publicEyebrow}</div>
+            <div class="discountflow-release-title">${publicTitle}</div>
           </div>
-          <div class="dt-release-right">
-            <div class="dt-release-price regular-price">${publicPrice}</div>
+          <div class="discountflow-release-right">
+            <div class="sds-release-price regular-price">${publicPrice}</div>
             ${shippingHtml}
           </div>
         </div>
@@ -253,7 +251,7 @@
       container.style.display = "block";
 
       // 4. Start the countdown clock
-      setupCountdown(container.querySelector(`[data-dt-countdown]`), activeStage.endDate);
+      setupCountdown(container.querySelector(`[data-sds-countdown]`), activeStage.endDate);
     }
 
     function setupCountdown(element, endDateStr) {
@@ -292,15 +290,15 @@
     }
 
     function renderWarningBanner(container) {
-      container.style.removeProperty('--dt-bg-color');
-      container.style.removeProperty('--dt-bg-gradient');
-      container.style.removeProperty('--dt-text-color');
-      container.style.removeProperty('--dt-card-color');
-      container.style.removeProperty('--dt-accent-color');
-      container.style.removeProperty('--dt-muted-color');
-      container.style.removeProperty('--dt-border-color');
-      container.style.removeProperty('--dt-sale-color');
-      container.style.removeProperty('--dt-original-color');
+      container.style.removeProperty('--sds-bg-color');
+      container.style.removeProperty('--sds-bg-gradient');
+      container.style.removeProperty('--sds-text-color');
+      container.style.removeProperty('--sds-card-color');
+      container.style.removeProperty('--sds-accent-color');
+      container.style.removeProperty('--sds-muted-color');
+      container.style.removeProperty('--sds-border-color');
+      container.style.removeProperty('--sds-sale-color');
+      container.style.removeProperty('--sds-original-color');
       
       container.style.padding = "0";
       container.style.background = "transparent";
@@ -309,15 +307,15 @@
       container.style.display = "block";
 
       container.innerHTML = `
-        <div class="dt-warning-banner">
-          <div class="dt-warning-icon-box">
+        <div class="discountflow-warning-banner">
+          <div class="discountflow-warning-icon-box">
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
               <line x1="12" y1="9" x2="12" y2="13"></line>
               <line x1="12" y1="17" x2="12.01" y2="17"></line>
             </svg>
           </div>
-          <div class="dt-warning-text">
+          <div class="discountflow-warning-text">
             Discount timer widget will only show on products that have an active discount campaign.
           </div>
         </div>

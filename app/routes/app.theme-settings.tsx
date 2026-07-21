@@ -90,9 +90,9 @@ export default function ThemeSettingsPage() {
     customCss: settings?.customCss ?? "",
     fontSize: settings?.fontSize ?? 14,
     fontWeight: settings?.fontWeight ?? "500",
-    salePriceColor: settings?.salePriceColor ?? "#E63946",
-    originalPriceColor: settings?.originalPriceColor ?? "#6B7280",
-    badgeBg: settings?.badgeBg ?? "#E63946",
+    salePriceColor: settings?.salePriceColor ?? "#1A1A1A",
+    originalPriceColor: settings?.originalPriceColor ?? "#D93939",
+    badgeBg: settings?.badgeBg ?? "#D93939",
     badgeTextColor: settings?.badgeTextColor ?? "#FFFFFF",
     padding: settings?.padding ?? 12,
     borderRadius: settings?.borderRadius ?? 8,
@@ -106,12 +106,12 @@ export default function ThemeSettingsPage() {
     productHeading: settings?.productHeading ?? "Selected Pieces",
     reserveButtonText: settings?.reserveButtonText ?? "Reserve Now",
     buttonAction: settings?.buttonAction ?? "cart",
-    bgColor: settings?.bgColor ?? "#f0efeb",
-    textColor: settings?.textColor ?? "#0e0e0d",
-    borderColor: settings?.borderColor ?? "#e2dfd9",
-    cardColor: settings?.cardColor ?? "#faf9f7",
-    accentColor: settings?.accentColor ?? "#1a3a2a",
-    mutedColor: settings?.mutedColor ?? "#9a9792",
+    bgColor: settings?.bgColor ?? "#1A1A1A",
+    textColor: settings?.textColor ?? "#FFFFFF",
+    borderColor: settings?.borderColor ?? "#E5E5E5",
+    cardColor: settings?.cardColor ?? "#FFFFFF",
+    accentColor: settings?.accentColor ?? "#111111",
+    mutedColor: settings?.mutedColor ?? "#707070",
     paddingTop: settings?.paddingTop ?? 40,
     paddingBottom: settings?.paddingBottom ?? 40,
     maxWidth: settings?.maxWidth ?? 580,
@@ -127,9 +127,9 @@ export default function ThemeSettingsPage() {
   const [customCss, setCustomCss] = useState(settings?.customCss ?? "");
   const [fontSize, setFontSize] = useState(settings?.fontSize ?? 14);
   const [fontWeight, setFontWeight] = useState(settings?.fontWeight ?? "500");
-  const [salePriceColor, setSalePriceColor] = useState(settings?.salePriceColor ?? "#E63946");
-  const [originalPriceColor, setOriginalPriceColor] = useState(settings?.originalPriceColor ?? "#6B7280");
-  const [badgeBg, setBadgeBg] = useState(settings?.badgeBg ?? "#E63946");
+  const [salePriceColor, setSalePriceColor] = useState(settings?.salePriceColor ?? "#1A1A1A");
+  const [originalPriceColor, setOriginalPriceColor] = useState(settings?.originalPriceColor ?? "#D93939");
+  const [badgeBg, setBadgeBg] = useState(settings?.badgeBg ?? "#D93939");
   const [badgeTextColor, setBadgeTextColor] = useState(settings?.badgeTextColor ?? "#FFFFFF");
   const [padding, setPadding] = useState(settings?.padding ?? 12);
   const [borderRadius, setBorderRadius] = useState(settings?.borderRadius ?? 8);
@@ -145,12 +145,12 @@ export default function ThemeSettingsPage() {
   const [productHeading, setProductHeading] = useState(settings?.productHeading ?? "Selected Pieces");
   const [reserveButtonText, setReserveButtonText] = useState(settings?.reserveButtonText ?? "Reserve Now");
   const [buttonAction, setButtonAction] = useState(settings?.buttonAction ?? "cart");
-  const [bgColor, setBgColor] = useState(settings?.bgColor ?? "#f0efeb");
-  const [textColor, setTextColor] = useState(settings?.textColor ?? "#0e0e0d");
-  const [borderColor, setBorderColor] = useState(settings?.borderColor ?? "#e2dfd9");
-  const [cardColor, setCardColor] = useState(settings?.cardColor ?? "#faf9f7");
-  const [accentColor, setAccentColor] = useState(settings?.accentColor ?? "#1a3a2a");
-  const [mutedColor, setMutedColor] = useState(settings?.mutedColor ?? "#9a9792");
+  const [bgColor, setBgColor] = useState(settings?.bgColor ?? "#1A1A1A");
+  const [textColor, setTextColor] = useState(settings?.textColor ?? "#FFFFFF");
+  const [borderColor, setBorderColor] = useState(settings?.borderColor ?? "#E5E5E5");
+  const [cardColor, setCardColor] = useState(settings?.cardColor ?? "#FFFFFF");
+  const [accentColor, setAccentColor] = useState(settings?.accentColor ?? "#111111");
+  const [mutedColor, setMutedColor] = useState(settings?.mutedColor ?? "#707070");
   const [paddingTop, setPaddingTop] = useState(settings?.paddingTop ?? 40);
   const [paddingBottom, setPaddingBottom] = useState(settings?.paddingBottom ?? 40);
   const [maxWidth, setMaxWidth] = useState(settings?.maxWidth ?? 580);
@@ -169,9 +169,9 @@ export default function ThemeSettingsPage() {
           customCss: actionData.settings.customCss ?? "",
           fontSize: actionData.settings.fontSize ?? 14,
           fontWeight: actionData.settings.fontWeight ?? "500",
-          salePriceColor: actionData.settings.salePriceColor ?? "#E63946",
-          originalPriceColor: actionData.settings.originalPriceColor ?? "#6B7280",
-          badgeBg: actionData.settings.badgeBg ?? "#E63946",
+          salePriceColor: actionData.settings.salePriceColor ?? "#1A1A1A",
+          originalPriceColor: actionData.settings.originalPriceColor ?? "#D93939",
+          badgeBg: actionData.settings.badgeBg ?? "#D93939",
           badgeTextColor: actionData.settings.badgeTextColor ?? "#FFFFFF",
           padding: actionData.settings.padding ?? 12,
           borderRadius: actionData.settings.borderRadius ?? 8,
@@ -185,12 +185,12 @@ export default function ThemeSettingsPage() {
           productHeading: actionData.settings.productHeading ?? "Selected Pieces",
           reserveButtonText: actionData.settings.reserveButtonText ?? "Reserve Now",
           buttonAction: actionData.settings.buttonAction ?? "cart",
-          bgColor: actionData.settings.bgColor ?? "#f0efeb",
-          textColor: actionData.settings.textColor ?? "#0e0e0d",
-          borderColor: actionData.settings.borderColor ?? "#e2dfd9",
-          cardColor: actionData.settings.cardColor ?? "#faf9f7",
-          accentColor: actionData.settings.accentColor ?? "#1a3a2a",
-          mutedColor: actionData.settings.mutedColor ?? "#9a9792",
+          bgColor: actionData.settings.bgColor ?? "#1A1A1A",
+          textColor: actionData.settings.textColor ?? "#FFFFFF",
+          borderColor: actionData.settings.borderColor ?? "#E5E5E5",
+          cardColor: actionData.settings.cardColor ?? "#FFFFFF",
+          accentColor: actionData.settings.accentColor ?? "#111111",
+          mutedColor: actionData.settings.mutedColor ?? "#707070",
           paddingTop: actionData.settings.paddingTop ?? 40,
           paddingBottom: actionData.settings.paddingBottom ?? 40,
           maxWidth: actionData.settings.maxWidth ?? 580,
@@ -312,12 +312,12 @@ export default function ThemeSettingsPage() {
         overflow: "hidden" // Prevent horizontal page overflow
       }}>
         <style>{`
-          .preview-timeline-wrapper {
+          .discountflow-timeline-wrapper {
             display: flex;
             flex-direction: column;
             width: 100%;
           }
-          .preview-active-timer-card {
+          .discountflow-active-timer-card {
             box-sizing: border-box;
             text-align: center;
             padding: 24px 20px;
@@ -327,13 +327,13 @@ export default function ThemeSettingsPage() {
             border-radius: ${borderRadius}px;
             margin-bottom: 24px;
           }
-          .preview-active-timer-title {
+          .discountflow-active-timer-title {
             font-size: 24px;
             font-weight: 700;
             margin-bottom: 4px;
             color: ${textColor};
           }
-          .preview-active-timer-subtitle {
+          .discountflow-active-timer-subtitle {
             font-size: 13px;
             opacity: 0.85;
             margin-bottom: 20px;
@@ -341,25 +341,25 @@ export default function ThemeSettingsPage() {
             text-transform: uppercase;
             color: ${textColor};
           }
-          .preview-active-timer-countdown {
+          .sds-countdown {
             display: flex;
             justify-content: center;
             align-items: center;
             gap: 12px;
           }
-          .preview-countdown-col {
+          .sds-countdown-col {
             display: flex;
             flex-direction: column;
             align-items: center;
             min-width: 50px;
           }
-          .preview-countdown-num {
+          .sds-countdown-num {
             font-size: 36px;
             font-weight: 700;
             line-height: 1;
             color: ${textColor};
           }
-          .preview-countdown-lbl {
+          .sds-countdown-lbl {
             font-size: 10px;
             font-weight: 500;
             opacity: 0.7;
@@ -368,7 +368,7 @@ export default function ThemeSettingsPage() {
             letter-spacing: 0.05em;
             color: ${textColor};
           }
-          .preview-countdown-sep {
+          .sds-countdown-sep {
             font-size: 32px;
             font-weight: 700;
             line-height: 1;
@@ -377,70 +377,70 @@ export default function ThemeSettingsPage() {
             top: -8px;
             color: ${textColor};
           }
-          .preview-releases-list {
+          .discountflow-releases-list {
             display: flex;
             flex-direction: column;
             width: 100%;
           }
-          .preview-release-row {
+          .discountflow-release-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding: 16px 0;
             border-bottom: 1px solid ${borderColor};
           }
-          .preview-release-row:last-child {
+          .discountflow-release-row:last-child {
             border-bottom: none;
           }
-          .preview-release-left {
+          .discountflow-release-left {
             display: flex;
             flex-direction: column;
             gap: 4px;
             text-align: left;
           }
-          .preview-release-eyebrow {
+          .discountflow-release-eyebrow {
             font-size: 9px;
             font-weight: 600;
             letter-spacing: 0.1em;
             text-transform: uppercase;
             color: ${mutedColor};
           }
-          .preview-release-title {
+          .discountflow-release-title {
             font-size: 16px;
             font-weight: 600;
             color: ${salePriceColor};
           }
-          .preview-release-right {
+          .discountflow-release-right {
             display: flex;
             flex-direction: column;
             gap: 4px;
             text-align: right;
           }
-          .preview-release-price {
+          .sds-release-price {
             font-family: Georgia, Garamond, serif;
             font-size: 18px;
             font-weight: 600;
           }
-          .preview-release-price {
+          .sds-release-price {
             color: ${originalPriceColor};
           }
-          .preview-release-shipping {
+          .discountflow-release-shipping {
             font-size: 11px;
             color: ${mutedColor};
           }
 
           /* Responsive Scaling for Mobile Screens */
           @media only screen and (max-width: 580px) {
-            .preview-active-timer-countdown {
+            .sds-countdown {
               gap: 6px;
             }
-            .preview-countdown-col {
+            .sds-countdown-col {
               min-width: 36px;
             }
-            .preview-countdown-num {
+            .sds-countdown-num {
               font-size: 28px !important;
             }
-            .preview-countdown-sep {
+            .sds-countdown-sep {
               font-size: 24px !important;
               top: -4px !important;
             }
@@ -453,55 +453,55 @@ export default function ThemeSettingsPage() {
         `}</style>
 
         <div style={previewStyles}>
-          <div className="preview-timeline-wrapper">
-            <div className="preview-active-timer-card">
-              <div className="preview-active-timer-title">{welcomeHeading}</div>
-              <div className="preview-active-timer-subtitle">{countdownText}</div>
+          <div className="discountflow-timeline-wrapper">
+            <div className="discountflow-active-timer-card">
+              <div className="discountflow-active-timer-title">{welcomeHeading}</div>
+              <div className="discountflow-active-timer-subtitle">{countdownText}</div>
               
-              <div className="preview-active-timer-countdown">
-                <div className="preview-countdown-col">
-                  <span className="preview-countdown-num">02</span>
-                  <span className="preview-countdown-lbl">Days</span>
+              <div className="sds-countdown">
+                <div className="sds-countdown-col">
+                  <span className="sds-countdown-num">02</span>
+                  <span className="sds-countdown-lbl">Days</span>
                 </div>
-                <span className="preview-countdown-sep">:</span>
-                <div className="preview-countdown-col">
-                  <span className="preview-countdown-num">23</span>
-                  <span className="preview-countdown-lbl">Hrs</span>
+                <span className="sds-countdown-sep">:</span>
+                <div className="sds-countdown-col">
+                  <span className="sds-countdown-num">23</span>
+                  <span className="sds-countdown-lbl">Hrs</span>
                 </div>
-                <span className="preview-countdown-sep">:</span>
-                <div className="preview-countdown-col">
-                  <span className="preview-countdown-num">59</span>
-                  <span className="preview-countdown-lbl">Mins</span>
+                <span className="sds-countdown-sep">:</span>
+                <div className="sds-countdown-col">
+                  <span className="sds-countdown-num">59</span>
+                  <span className="sds-countdown-lbl">Mins</span>
                 </div>
-                <span className="preview-countdown-sep">:</span>
-                <div className="preview-countdown-col">
-                  <span className="preview-countdown-num">06</span>
-                  <span className="preview-countdown-lbl">Secs</span>
+                <span className="sds-countdown-sep">:</span>
+                <div className="sds-countdown-col">
+                  <span className="sds-countdown-num">06</span>
+                  <span className="sds-countdown-lbl">Secs</span>
                 </div>
               </div>
             </div>
 
-            <div className="preview-releases-list">
-              <div className="preview-release-row">
-                <div className="preview-release-left">
-                  <div className="preview-release-eyebrow">DROP 2 - OPENS AFTER DROP 1</div>
-                  <div className="preview-release-title">Second Release</div>
+            <div className="discountflow-releases-list">
+              <div className="discountflow-release-row">
+                <div className="discountflow-release-left">
+                  <div className="discountflow-release-eyebrow">DROP 2 - OPENS AFTER DROP 1</div>
+                  <div className="discountflow-release-title">Second Release</div>
                 </div>
-                <div className="preview-release-right">
-                  <div className="preview-release-price">£166.98</div>
-                  <div className="preview-release-shipping">Ships in ~5-7 days</div>
+                <div className="discountflow-release-right">
+                  <div className="sds-release-price">£166.98</div>
+                  <div className="discountflow-release-shipping">Ships in ~5-7 days</div>
                 </div>
               </div>
 
-              <div className="preview-release-row">
-                <div className="preview-release-left">
-                  <div className="preview-release-eyebrow">DROP 3 - PUBLIC RELEASE</div>
-                  <div className="preview-release-title">Open To The Public</div>
+              <div className="discountflow-release-row">
+                <div className="discountflow-release-left">
+                  <div className="discountflow-release-eyebrow">DROP 3 - PUBLIC RELEASE</div>
+                  <div className="discountflow-release-title">Open To The Public</div>
                 </div>
-                <div className="preview-release-right">
-                  <div className="preview-release-price">£253.00</div>
+                <div className="discountflow-release-right">
+                  <div className="sds-release-price">£253.00</div>
                   {publicShipping && publicShipping.trim() !== "" && (
-                    <div className="preview-release-shipping">{publicShipping}</div>
+                    <div className="discountflow-release-shipping">{publicShipping}</div>
                   )}
                 </div>
               </div>
