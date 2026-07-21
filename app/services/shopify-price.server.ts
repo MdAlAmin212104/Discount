@@ -316,3 +316,38 @@ export async function updateVariantPriceWithRetry(
     }
   }
 }
+
+// ── Shared helper: restore variant prices when pausing/deleting a campaign ──
+export async function restoreCampaignVariantPrices(shopId: string, campaignId: string, admin: any) {
+  const prisma = (await import("../db.server")).default;
+  const { CampaignStatus, StageStatus } = await import("@prisma/client");
+
+  const settings = await prisma.themeSettings.findUnique({ where: { shopId } });
+  const strategy = settings?.conflictStrategy || "HIGHEST_DISCOUNT";
+
+  const snapshots = await prisma.variantPriceSnapshot.findMany({ where: { shopId, campaignId } });
+  for (const snap of snapshots) {
+    const others = await prisma.variantPriceSnapshot.findMany({
+      where: { shopId, variantId: snap.variantId, campaignId: { not: campaignId }, campaign: { status: CampaignStatus.ACTIVE } },
+      include: { campaign: { include: { stages: { where: { status: StageStatus.ACTIVE } } } } },
+    });
+    if (others.length > 0) {
+      const prices = others.map((o) => {
+        const s = o.campaign.stages[0];
+        let p = snap.originalPrice;
+        if (o.campaign.discountType === "PERCENTAGE") {
+          p = snap.originalPrice * (1 - (s?.discountValue ?? 0) / 100);
+        } else if (o.campaign.discountType === "FIXED_DISCOUNT") {
+          p = Math.max(0, snap.originalPrice - (s?.discountValue ?? 0));
+        } else {
+          p = (s?.discountValue ?? 0);
+        }
+        return p;
+      });
+      const finalPrice = strategy === "LOWEST_DISCOUNT" ? Math.max(...prices) : Math.min(...prices);
+      await updateVariantPriceWithRetry(admin, snap.variantId, finalPrice, snap.originalPrice);
+    } else {
+      await updateVariantPriceWithRetry(admin, snap.variantId, snap.originalPrice, snap.originalComparePrice);
+    }
+  }
+}

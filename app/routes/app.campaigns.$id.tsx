@@ -2,10 +2,11 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useNavigate, useSubmit, useActionData, useNavigation } from "react-router";
 import { useEffect, useState } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
-import { authenticate, unauthenticated } from "../shopify.server";
+import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
 import { CampaignStatus, StageStatus, LogEvent, JobStatus } from "@prisma/client";
-import { updateVariantPriceWithRetry } from "../services/shopify-price.server";
+import { updateVariantPriceWithRetry, restoreCampaignVariantPrices } from "../services/shopify-price.server";
+import { processStageJob } from "../services/scheduler.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -17,6 +18,26 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   });
 
   if (!campaign) throw new Response("Campaign Not Found", { status: 404 });
+
+  // Resolve shop timezone if campaign timezone is default or not set
+  let shopTimezone = campaign.timezone || "UTC";
+  try {
+    const resShop = await admin.graphql(`#graphql
+      query getShopTimezone {
+        shop { ianaTimezone }
+      }`);
+    const shopJson = await resShop.json();
+    if (shopJson.data?.shop?.ianaTimezone) {
+      shopTimezone = shopJson.data.shop.ianaTimezone;
+    }
+  } catch (err) {
+    console.error("Error fetching shop timezone:", err);
+  }
+
+  const campaignWithTimezone = {
+    ...campaign,
+    timezone: shopTimezone,
+  };
 
   const conflicts = await prisma.activityLog.findMany({
     where: { shopId: shop.id, campaignId: campaign.id, event: LogEvent.CONFLICT_DETECTED },
@@ -166,7 +187,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   }
 
   return {
-    campaign,
+    campaign: campaignWithTimezone,
     conflicts,
     resolvedProducts: deduplicatedProducts,
     variantDetailsMap,
@@ -189,29 +210,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (!campaign) return { error: "Campaign not found" };
 
   const restoreVariants = async () => {
-    const settings = await prisma.themeSettings.findUnique({ where: { shopId: shop.id } });
-    const strategy = settings?.conflictStrategy || "HIGHEST_DISCOUNT";
-
-    const snapshots = await prisma.variantPriceSnapshot.findMany({ where: { shopId: shop.id, campaignId: campaign.id } });
-    for (const snap of snapshots) {
-      const others = await prisma.variantPriceSnapshot.findMany({
-        where: { shopId: shop.id, variantId: snap.variantId, campaignId: { not: campaign.id }, campaign: { status: CampaignStatus.ACTIVE } },
-        include: { campaign: { include: { stages: { where: { status: StageStatus.ACTIVE } } } } },
-      });
-      if (others.length > 0) {
-        const prices = others.map((o) => {
-          const s = o.campaign.stages[0];
-          let p = snap.originalPrice;
-          if (o.campaign.discountType === "PERCENTAGE") p = snap.originalPrice * (1 - (s?.discountValue ?? 0) / 100);
-          else p = (s?.discountValue ?? 0);
-          return p;
-        });
-        const finalPrice = strategy === "LOWEST_DISCOUNT" ? Math.max(...prices) : Math.min(...prices);
-        await updateVariantPriceWithRetry(admin, snap.variantId, finalPrice, snap.originalPrice);
-      } else {
-        await updateVariantPriceWithRetry(admin, snap.variantId, snap.originalPrice, snap.originalComparePrice);
-      }
-    }
+    await restoreCampaignVariantPrices(shop.id, campaign.id, admin);
   };
 
   if (intent === "DELETE") {
@@ -228,7 +227,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (intent === "PAUSE") {
     try {
       await restoreVariants();
-      await prisma.variantPriceSnapshot.deleteMany({ where: { campaignId: campaign.id } });
 
       await prisma.campaign.update({ where: { id: campaign.id }, data: { status: CampaignStatus.DRAFT } });
       await prisma.campaignStage.updateMany({ where: { campaignId: campaign.id }, data: { status: StageStatus.PENDING } });
@@ -281,11 +279,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       for (const stage of shiftedStages) {
         if (stage.endDate > now) {
           const scheduledAt = stage.startDate <= now ? now : stage.startDate;
-          await prisma.schedulerJob.upsert({
+          const job = await prisma.schedulerJob.upsert({
             where: { stageId: stage.id },
             update: { scheduledAt, status: JobStatus.PENDING, attempts: 0 },
             create: { shopId: shop.id, stageId: stage.id, scheduledAt, status: JobStatus.PENDING },
           });
+
+          // ── Immediate price update trigger for active stage on resume ──
+          if (stage.startDate <= now && stage.endDate >= now && job) {
+            processStageJob(job).catch((err) => {
+              console.error("Error triggering immediate price update on resume:", err);
+            });
+          }
         }
       }
 
@@ -398,7 +403,15 @@ export default function CampaignDetail() {
                 <s-grid-item gridColumn="span 3">
                   <s-stack direction="block" gap="none">
                     <s-text tone="neutral">Type</s-text>
-                    <s-text><strong>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</strong></s-text>
+                    <s-text>
+                      <strong>
+                        {campaign.discountType === "PERCENTAGE"
+                          ? "Percentage Off (%)"
+                          : campaign.discountType === "FIXED_DISCOUNT"
+                          ? "Fixed Discount Off ($)"
+                          : "Fixed Target Price ($)"}
+                      </strong>
+                    </s-text>
                   </s-stack>
                 </s-grid-item>
                 <s-grid-item gridColumn="span 3">
@@ -471,7 +484,13 @@ export default function CampaignDetail() {
                         <s-table-cell>{stage.stageNumber}</s-table-cell>
                         <s-table-cell>{stageLabelNode}</s-table-cell>
                         <s-table-cell>
-                          <s-text>{stage.discountValue}{campaign.discountType === "PERCENTAGE" ? "%" : "$"}</s-text>
+                          <s-text>
+                            {campaign.discountType === "PERCENTAGE"
+                              ? `${stage.discountValue}% OFF`
+                              : campaign.discountType === "FIXED_DISCOUNT"
+                              ? `$${stage.discountValue} OFF`
+                              : `$${stage.discountValue} (Target)`}
+                          </s-text>
                         </s-table-cell>
                         <s-table-cell>{new Date(stage.startDate).toLocaleDateString()}</s-table-cell>
                         <s-table-cell>{new Date(stage.endDate).toLocaleDateString()}</s-table-cell>

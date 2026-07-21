@@ -360,7 +360,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             }`, { variables: { ids } });
           const json = await res.json();
           const nodes = (json.data?.nodes || []).filter(Boolean);
-          const loadedVariants = nodes.map((v: any) => ({
+          const variants = nodes.map((v: any) => ({
             id: v.id,
             title: v.title,
             price: parseFloat(v.price || "0"),
@@ -369,7 +369,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             productId: v.product?.id || "",
             featuredImage: { url: v.product?.featuredImage?.url || "" },
           }));
-          return { campaign, resolvedProducts: [], loadedCollections: [], resolvedCollectionsMap: {}, loadedVariants, shopSettings };
+          loadedVariants.push(...variants);
         }
       }
     }
@@ -380,7 +380,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       seen.add(p.id);
       return true;
     });
-    return { campaign, resolvedProducts: deduplicatedProducts, loadedCollections, resolvedCollectionsMap, loadedVariants: [], shopSettings };
+
+    const seenVariants = new Set();
+    const deduplicatedVariants = loadedVariants.filter((v) => {
+      if (!v || seenVariants.has(v.id)) return false;
+      seenVariants.add(v.id);
+      return true;
+    });
+
+    return {
+      campaign,
+      resolvedProducts: deduplicatedProducts,
+      loadedCollections,
+      resolvedCollectionsMap,
+      loadedVariants: deduplicatedVariants,
+      shopSettings,
+    };
   }
 
   return { campaign: null, resolvedProducts: [], loadedCollections: [], resolvedCollectionsMap: {}, loadedVariants: [], shopSettings };
@@ -416,13 +431,17 @@ async function buildDiscountItemsInput(
   if (targetType === "PRODUCT") {
     return { products: { productsToAdd: ids } };
   }
+  if (targetType === "VARIANT") {
+    return { products: { productVariantsToAdd: ids } };
+  }
   if (targetType === "COLLECTION") {
     return { collections: { add: ids } };
   }
-  // TAG: Shopify discount targeting doesn't support tags directly,
-  // so resolve matching product IDs and target those instead.
-  const resolvedIds = await resolveTagProductIds(admin, ids);
-  return { products: { productsToAdd: resolvedIds } };
+  if (targetType === "TAG") {
+    const resolvedIds = await resolveTagProductIds(admin, ids);
+    return { products: { productsToAdd: resolvedIds } };
+  }
+  return { products: { productsToAdd: ids } };
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -461,17 +480,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const campaignStartDate = new Date(Math.min(...startDates.map((d) => d.getTime())));
   const campaignEndDate = new Date(Math.max(...endDates.map((d) => d.getTime())));
   const now = new Date();
-  let status: CampaignStatus = CampaignStatus.SCHEDULED;
-  if (campaignEndDate <= now) status = CampaignStatus.COMPLETED;
-  else if (campaignStartDate <= now && campaignEndDate > now) status = CampaignStatus.ACTIVE;
 
-  // ── Resolve the discount `items` target ONCE — same target applies to every phase ──
-  let itemsInput: any;
-  try {
-    itemsInput = await buildDiscountItemsInput(admin, targetType, targetValue);
-  } catch (resolveErr) {
-    console.error("Error resolving discount target items:", resolveErr);
-    return { error: "Failed to resolve selected products/collections/tags" };
+  let status: CampaignStatus = CampaignStatus.SCHEDULED;
+  if (id) {
+    const existingCampaign = await prisma.campaign.findUnique({
+      where: { id },
+      select: { status: true },
+    });
+    if (existingCampaign?.status === CampaignStatus.PAUSED) {
+      status = CampaignStatus.PAUSED;
+    } else if (existingCampaign?.status === CampaignStatus.DRAFT) {
+      status = CampaignStatus.DRAFT;
+    }
+  }
+
+  if (status !== CampaignStatus.PAUSED && status !== CampaignStatus.DRAFT) {
+    if (campaignEndDate <= now) status = CampaignStatus.COMPLETED;
+    else if (campaignStartDate <= now && campaignEndDate > now) status = CampaignStatus.ACTIVE;
   }
 
   // ── Grab existing stages' Shopify discount IDs BEFORE wiping them out (edit mode only) ──
@@ -513,11 +538,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const labelObj = {
           label: s.badgeLabel, isCirclePhase: true, phaseTitle: s.phaseTitle,
         };
+
+        const matchedOld = existingStagesWithDiscount.find(
+          (es) => es.stageNumber === i + 1 && !!es.shopifyDiscountId
+        );
+
         const stage = await tx.campaignStage.create({
           data: {
-            campaignId: campaign.id, stageNumber: i + 1,
-            label: JSON.stringify(labelObj), discountValue: parseFloat(s.discountValue),
-            startDate: new Date(s.startDate), endDate: new Date(s.endDate), status: "PENDING",
+            campaignId: campaign.id,
+            stageNumber: i + 1,
+            label: JSON.stringify(labelObj),
+            discountValue: parseFloat(s.discountValue),
+            startDate: new Date(s.startDate),
+            endDate: new Date(s.endDate),
+            status: "PENDING",
+            shopifyDiscountId: matchedOld?.shopifyDiscountId || null,
           },
         });
         let job = null;
@@ -525,10 +560,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           const scheduledAt = new Date(s.startDate) <= now ? now : new Date(s.startDate);
           job = await tx.schedulerJob.create({ data: { shopId: shop.id, stageId: stage.id, scheduledAt, status: "PENDING" } });
         }
-
-        const matchedOld = existingStagesWithDiscount.find(
-          (es) => es.stageNumber === i + 1 && !!es.shopifyDiscountId
-        );
 
         createdStages.push({ stage, code, job, oldShopifyDiscountId: matchedOld?.shopifyDiscountId || null });
       }

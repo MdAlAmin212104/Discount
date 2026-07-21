@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
 import { CampaignStatus, StageStatus } from "@prisma/client";
-import { updateVariantPriceWithRetry } from "../services/shopify-price.server";
+import { updateVariantPriceWithRetry, restoreCampaignVariantPrices } from "../services/shopify-price.server";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -36,26 +36,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
       if (!campaign) return { error: "Campaign not found" };
 
-      // Restore variants logic
-      const snapshots = await prisma.variantPriceSnapshot.findMany({ where: { shopId: shop.id, campaignId: campaign.id } });
-      for (const snap of snapshots) {
-        const others = await prisma.variantPriceSnapshot.findMany({
-          where: { shopId: shop.id, variantId: snap.variantId, campaignId: { not: campaign.id }, campaign: { status: CampaignStatus.ACTIVE } },
-          include: { campaign: { include: { stages: { where: { status: StageStatus.ACTIVE } } } } },
-        });
-        if (others.length > 0) {
-          const prices = others.map((o) => {
-            const s = o.campaign.stages[0];
-            let p = snap.originalPrice;
-            if (o.campaign.discountType === "PERCENTAGE") p = snap.originalPrice * (1 - (s?.discountValue ?? 0) / 100);
-            else p = (s?.discountValue ?? 0);
-            return p;
-          });
-          await updateVariantPriceWithRetry(admin, snap.variantId, Math.min(...prices), snap.originalPrice);
-        } else {
-          await updateVariantPriceWithRetry(admin, snap.variantId, snap.originalPrice, snap.originalComparePrice);
-        }
-      }
+      // Restore variants using shared helper function
+      await restoreCampaignVariantPrices(shop.id, campaign.id, admin);
 
       await prisma.schedulerJob.deleteMany({ where: { stageId: { in: campaign.stages.map((s) => s.id) } } });
       await prisma.variantPriceSnapshot.deleteMany({ where: { campaignId: campaign.id } });
@@ -459,7 +441,13 @@ export default function CampaignsList() {
                           <StatusBadge status={campaign.status} />
                         </s-table-cell>
                         <s-table-cell>
-                          <s-text>{campaign.discountType === "PERCENTAGE" ? "Percentage" : "Fixed Amount"}</s-text>
+                          <s-text>
+                            {campaign.discountType === "PERCENTAGE"
+                              ? "Percentage Off (%)"
+                              : campaign.discountType === "FIXED_DISCOUNT"
+                              ? "Fixed Discount Off ($)"
+                              : "Fixed Target Price ($)"}
+                          </s-text>
                         </s-table-cell>
                         <s-table-cell>{campaign.stages.length}</s-table-cell>
                         <s-table-cell>
@@ -543,7 +531,7 @@ export default function CampaignsList() {
         <s-box padding="base">
           <s-stack direction="block" gap="base">
             <s-text>
-              Are you sure you want to delete the campaign <strong>{campaignToDelete?.name}</strong>? This action cannot be undone and baseline prices will be restored.
+              Are you sure you want to delete the campaign <strong>{campaignToDelete?.name || "this campaign"}</strong>? This action cannot be undone and baseline prices will be restored.
             </s-text>
           </s-stack>
         </s-box>
