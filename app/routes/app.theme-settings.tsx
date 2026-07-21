@@ -25,40 +25,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     const data = {
-      badgeText: formData.get("badgeText") as string,
+      welcomeHeading: formData.get("welcomeHeading") as string,
       countdownText: formData.get("countdownText") as string,
-      stageLabelText: formData.get("stageLabelText") as string,
-      customJs: (formData.get("customJs") as string) || "",
-      customCss: (formData.get("customCss") as string) || "",
-      fontSize: parseInt((formData.get("fontSize") as string) || "14"),
-      fontWeight: formData.get("fontWeight") as string,
+      publicShipping: formData.get("publicShipping") as string,
+      conflictStrategy: (formData.get("conflictStrategy") as string) || "HIGHEST_DISCOUNT",
+      bgColor: formData.get("bgColor") as string,
+      accentColor: formData.get("accentColor") as string,
+      textColor: formData.get("textColor") as string,
+      cardColor: formData.get("cardColor") as string,
       salePriceColor: formData.get("salePriceColor") as string,
       originalPriceColor: formData.get("originalPriceColor") as string,
-      badgeBg: formData.get("badgeBg") as string,
-      badgeTextColor: formData.get("badgeTextColor") as string,
-      padding: parseInt((formData.get("padding") as string) || "12"),
-      borderRadius: parseInt((formData.get("borderRadius") as string) || "8"),
-      alignment: formData.get("alignment") as string,
-      sliderItems: parseInt((formData.get("sliderItems") as string) || "3"),
-      cartMode: (formData.get("cartMode") as string) || "stay",
-      memberLabel: formData.get("memberLabel") as string,
-      welcomeHeading: formData.get("welcomeHeading") as string,
-      welcomeEmphasis: formData.get("welcomeEmphasis") as string,
-      welcomeSubHeading: formData.get("welcomeSubHeading") as string,
-      productHeading: formData.get("productHeading") as string,
-      reserveButtonText: formData.get("reserveButtonText") as string,
-      buttonAction: formData.get("buttonAction") as string,
-      bgColor: formData.get("bgColor") as string,
-      textColor: formData.get("textColor") as string,
-      borderColor: formData.get("borderColor") as string,
-      cardColor: formData.get("cardColor") as string,
-      accentColor: formData.get("accentColor") as string,
       mutedColor: formData.get("mutedColor") as string,
+      borderColor: formData.get("borderColor") as string,
+      borderRadius: parseInt((formData.get("borderRadius") as string) || "8"),
+      maxWidth: parseInt((formData.get("maxWidth") as string) || "580"),
       paddingTop: parseInt((formData.get("paddingTop") as string) || "40"),
       paddingBottom: parseInt((formData.get("paddingBottom") as string) || "40"),
-      maxWidth: parseInt((formData.get("maxWidth") as string) || "580"),
-      conflictStrategy: (formData.get("conflictStrategy") as string) || "HIGHEST_DISCOUNT",
-      publicShipping: formData.get("publicShipping") as string,
+      customCss: (formData.get("customCss") as string) || "",
     };
     const updated = await prisma.themeSettings.upsert({
       where: { shopId: shop.id },
@@ -83,119 +66,66 @@ export default function ThemeSettingsPage() {
   const [activeTab, setActiveTab] = useState(0);
 
   const initialValuesRef = useRef({
-    badgeText: settings?.badgeText ?? "Sale",
+    welcomeHeading: settings?.welcomeHeading ?? "Exclusive Access",
     countdownText: settings?.countdownText ?? "Ends in",
-    stageLabelText: settings?.stageLabelText ?? "Stage",
-    customJs: settings?.customJs ?? "",
-    customCss: settings?.customCss ?? "",
-    fontSize: settings?.fontSize ?? 14,
-    fontWeight: settings?.fontWeight ?? "500",
+    publicShipping: settings?.publicShipping ?? "Ships in ~5-7 days",
+    conflictStrategy: settings?.conflictStrategy ?? "HIGHEST_DISCOUNT",
+    bgColor: settings?.bgColor ?? "#1A1A1A",
+    accentColor: settings?.accentColor ?? "#111111",
+    textColor: settings?.textColor ?? "#FFFFFF",
+    cardColor: settings?.cardColor ?? "#FFFFFF",
     salePriceColor: settings?.salePriceColor ?? "#1A1A1A",
     originalPriceColor: settings?.originalPriceColor ?? "#D93939",
-    badgeBg: settings?.badgeBg ?? "#D93939",
-    badgeTextColor: settings?.badgeTextColor ?? "#FFFFFF",
-    padding: settings?.padding ?? 12,
-    borderRadius: settings?.borderRadius ?? 8,
-    alignment: settings?.alignment ?? "left",
-    sliderItems: settings?.sliderItems ?? 3,
-    cartMode: settings?.cartMode ?? "stay",
-    memberLabel: settings?.memberLabel ?? "Inner Circle Member",
-    welcomeHeading: settings?.welcomeHeading ?? "Exclusive Access",
-    welcomeEmphasis: settings?.welcomeEmphasis ?? "Offers",
-    welcomeSubHeading: settings?.welcomeSubHeading ?? "Members get every release first, before public launch.",
-    productHeading: settings?.productHeading ?? "Selected Pieces",
-    reserveButtonText: settings?.reserveButtonText ?? "Reserve Now",
-    buttonAction: settings?.buttonAction ?? "cart",
-    bgColor: settings?.bgColor ?? "#1A1A1A",
-    textColor: settings?.textColor ?? "#FFFFFF",
-    borderColor: settings?.borderColor ?? "#E5E5E5",
-    cardColor: settings?.cardColor ?? "#FFFFFF",
-    accentColor: settings?.accentColor ?? "#111111",
     mutedColor: settings?.mutedColor ?? "#707070",
+    borderColor: settings?.borderColor ?? "#E5E5E5",
+    borderRadius: settings?.borderRadius ?? 8,
+    maxWidth: settings?.maxWidth ?? 580,
     paddingTop: settings?.paddingTop ?? 40,
     paddingBottom: settings?.paddingBottom ?? 40,
-    maxWidth: settings?.maxWidth ?? 580,
-    conflictStrategy: settings?.conflictStrategy ?? "HIGHEST_DISCOUNT",
-    publicShipping: settings?.publicShipping ?? "Ships in ~5-7 days",
+    customCss: settings?.customCss ?? "",
   });
 
-  // Form state
-  const [badgeText, setBadgeText] = useState(settings?.badgeText ?? "Sale");
+  // Active form state
+  const [welcomeHeading, setWelcomeHeading] = useState(settings?.welcomeHeading ?? "Exclusive Access");
   const [countdownText, setCountdownText] = useState(settings?.countdownText ?? "Ends in");
-  const [stageLabelText, setStageLabelText] = useState(settings?.stageLabelText ?? "Stage");
-  const [customJs, setCustomJs] = useState(settings?.customJs ?? "");
-  const [customCss, setCustomCss] = useState(settings?.customCss ?? "");
-  const [fontSize, setFontSize] = useState(settings?.fontSize ?? 14);
-  const [fontWeight, setFontWeight] = useState(settings?.fontWeight ?? "500");
+  const [publicShipping, setPublicShipping] = useState(settings?.publicShipping ?? "Ships in ~5-7 days");
+  const [conflictStrategy, setConflictStrategy] = useState(settings?.conflictStrategy ?? "HIGHEST_DISCOUNT");
+  const [bgColor, setBgColor] = useState(settings?.bgColor ?? "#1A1A1A");
+  const [accentColor, setAccentColor] = useState(settings?.accentColor ?? "#111111");
+  const [textColor, setTextColor] = useState(settings?.textColor ?? "#FFFFFF");
+  const [cardColor, setCardColor] = useState(settings?.cardColor ?? "#FFFFFF");
   const [salePriceColor, setSalePriceColor] = useState(settings?.salePriceColor ?? "#1A1A1A");
   const [originalPriceColor, setOriginalPriceColor] = useState(settings?.originalPriceColor ?? "#D93939");
-  const [badgeBg, setBadgeBg] = useState(settings?.badgeBg ?? "#D93939");
-  const [badgeTextColor, setBadgeTextColor] = useState(settings?.badgeTextColor ?? "#FFFFFF");
-  const [padding, setPadding] = useState(settings?.padding ?? 12);
-  const [borderRadius, setBorderRadius] = useState(settings?.borderRadius ?? 8);
-  const [alignment, setAlignment] = useState(settings?.alignment ?? "left");
-  const [sliderItems, setSliderItems] = useState(settings?.sliderItems ?? 3);
-  const [cartMode, setCartMode] = useState(settings?.cartMode ?? "stay");
-
-  // Customized fields state
-  const [memberLabel, setMemberLabel] = useState(settings?.memberLabel ?? "Inner Circle Member");
-  const [welcomeHeading, setWelcomeHeading] = useState(settings?.welcomeHeading ?? "Exclusive Access");
-  const [welcomeEmphasis, setWelcomeEmphasis] = useState(settings?.welcomeEmphasis ?? "Offers");
-  const [welcomeSubHeading, setWelcomeSubHeading] = useState(settings?.welcomeSubHeading ?? "Members get every release first, before public launch.");
-  const [productHeading, setProductHeading] = useState(settings?.productHeading ?? "Selected Pieces");
-  const [reserveButtonText, setReserveButtonText] = useState(settings?.reserveButtonText ?? "Reserve Now");
-  const [buttonAction, setButtonAction] = useState(settings?.buttonAction ?? "cart");
-  const [bgColor, setBgColor] = useState(settings?.bgColor ?? "#1A1A1A");
-  const [textColor, setTextColor] = useState(settings?.textColor ?? "#FFFFFF");
-  const [borderColor, setBorderColor] = useState(settings?.borderColor ?? "#E5E5E5");
-  const [cardColor, setCardColor] = useState(settings?.cardColor ?? "#FFFFFF");
-  const [accentColor, setAccentColor] = useState(settings?.accentColor ?? "#111111");
   const [mutedColor, setMutedColor] = useState(settings?.mutedColor ?? "#707070");
+  const [borderColor, setBorderColor] = useState(settings?.borderColor ?? "#E5E5E5");
+  const [borderRadius, setBorderRadius] = useState(settings?.borderRadius ?? 8);
+  const [maxWidth, setMaxWidth] = useState(settings?.maxWidth ?? 580);
   const [paddingTop, setPaddingTop] = useState(settings?.paddingTop ?? 40);
   const [paddingBottom, setPaddingBottom] = useState(settings?.paddingBottom ?? 40);
-  const [maxWidth, setMaxWidth] = useState(settings?.maxWidth ?? 580);
-  const [conflictStrategy, setConflictStrategy] = useState(settings?.conflictStrategy ?? "HIGHEST_DISCOUNT");
-  const [publicShipping, setPublicShipping] = useState(settings?.publicShipping ?? "Ships in ~5-7 days");
+  const [customCss, setCustomCss] = useState(settings?.customCss ?? "");
 
   useEffect(() => {
     if (actionData?.success) {
       shopify.toast.show("Theme settings saved!");
       if (actionData?.settings) {
         initialValuesRef.current = {
-          badgeText: actionData.settings.badgeText ?? "Sale",
+          welcomeHeading: actionData.settings.welcomeHeading ?? "Exclusive Access",
           countdownText: actionData.settings.countdownText ?? "Ends in",
-          stageLabelText: actionData.settings.stageLabelText ?? "Stage",
-          customJs: actionData.settings.customJs ?? "",
-          customCss: actionData.settings.customCss ?? "",
-          fontSize: actionData.settings.fontSize ?? 14,
-          fontWeight: actionData.settings.fontWeight ?? "500",
+          publicShipping: actionData.settings.publicShipping ?? "Ships in ~5-7 days",
+          conflictStrategy: actionData.settings.conflictStrategy ?? "HIGHEST_DISCOUNT",
+          bgColor: actionData.settings.bgColor ?? "#1A1A1A",
+          accentColor: actionData.settings.accentColor ?? "#111111",
+          textColor: actionData.settings.textColor ?? "#FFFFFF",
+          cardColor: actionData.settings.cardColor ?? "#FFFFFF",
           salePriceColor: actionData.settings.salePriceColor ?? "#1A1A1A",
           originalPriceColor: actionData.settings.originalPriceColor ?? "#D93939",
-          badgeBg: actionData.settings.badgeBg ?? "#D93939",
-          badgeTextColor: actionData.settings.badgeTextColor ?? "#FFFFFF",
-          padding: actionData.settings.padding ?? 12,
-          borderRadius: actionData.settings.borderRadius ?? 8,
-          alignment: actionData.settings.alignment ?? "left",
-          sliderItems: actionData.settings.sliderItems ?? 3,
-          cartMode: actionData.settings.cartMode ?? "stay",
-          memberLabel: actionData.settings.memberLabel ?? "Inner Circle Member",
-          welcomeHeading: actionData.settings.welcomeHeading ?? "Exclusive Access",
-          welcomeEmphasis: actionData.settings.welcomeEmphasis ?? "Offers",
-          welcomeSubHeading: actionData.settings.welcomeSubHeading ?? "Members get every release first, before public launch.",
-          productHeading: actionData.settings.productHeading ?? "Selected Pieces",
-          reserveButtonText: actionData.settings.reserveButtonText ?? "Reserve Now",
-          buttonAction: actionData.settings.buttonAction ?? "cart",
-          bgColor: actionData.settings.bgColor ?? "#1A1A1A",
-          textColor: actionData.settings.textColor ?? "#FFFFFF",
-          borderColor: actionData.settings.borderColor ?? "#E5E5E5",
-          cardColor: actionData.settings.cardColor ?? "#FFFFFF",
-          accentColor: actionData.settings.accentColor ?? "#111111",
           mutedColor: actionData.settings.mutedColor ?? "#707070",
+          borderColor: actionData.settings.borderColor ?? "#E5E5E5",
+          borderRadius: actionData.settings.borderRadius ?? 8,
+          maxWidth: actionData.settings.maxWidth ?? 580,
           paddingTop: actionData.settings.paddingTop ?? 40,
           paddingBottom: actionData.settings.paddingBottom ?? 40,
-          maxWidth: actionData.settings.maxWidth ?? 580,
-          conflictStrategy: actionData.settings.conflictStrategy ?? "HIGHEST_DISCOUNT",
-          publicShipping: actionData.settings.publicShipping ?? "Ships in ~5-7 days",
+          customCss: actionData.settings.customCss ?? "",
         };
       }
     } else if (actionData?.error) {
@@ -205,80 +135,46 @@ export default function ThemeSettingsPage() {
 
   const handleSave = () => {
     const f = new FormData();
-    f.append("badgeText", badgeText);
+    f.append("welcomeHeading", welcomeHeading);
     f.append("countdownText", countdownText);
-    f.append("stageLabelText", stageLabelText);
-    f.append("customJs", customJs);
-    f.append("customCss", customCss);
-    f.append("fontSize", fontSize.toString());
-    f.append("fontWeight", fontWeight);
+    f.append("publicShipping", publicShipping);
+    f.append("conflictStrategy", conflictStrategy);
+    f.append("bgColor", bgColor);
+    f.append("accentColor", accentColor);
+    f.append("textColor", textColor);
+    f.append("cardColor", cardColor);
     f.append("salePriceColor", salePriceColor);
     f.append("originalPriceColor", originalPriceColor);
-    f.append("badgeBg", badgeBg);
-    f.append("badgeTextColor", badgeTextColor);
-    f.append("padding", padding.toString());
-    f.append("borderRadius", borderRadius.toString());
-    f.append("alignment", alignment);
-    f.append("sliderItems", sliderItems.toString());
-    f.append("cartMode", cartMode);
-    f.append("memberLabel", memberLabel);
-    f.append("welcomeHeading", welcomeHeading);
-    f.append("welcomeEmphasis", welcomeEmphasis);
-    f.append("welcomeSubHeading", welcomeSubHeading);
-    f.append("productHeading", productHeading);
-    f.append("reserveButtonText", reserveButtonText);
-    f.append("buttonAction", buttonAction);
-    f.append("bgColor", bgColor);
-    f.append("textColor", textColor);
-    f.append("borderColor", borderColor);
-    f.append("cardColor", cardColor);
-    f.append("accentColor", accentColor);
     f.append("mutedColor", mutedColor);
+    f.append("borderColor", borderColor);
+    f.append("borderRadius", borderRadius.toString());
+    f.append("maxWidth", maxWidth.toString());
     f.append("paddingTop", paddingTop.toString());
     f.append("paddingBottom", paddingBottom.toString());
-    f.append("maxWidth", maxWidth.toString());
-    f.append("conflictStrategy", conflictStrategy);
-    f.append("publicShipping", publicShipping);
+    f.append("customCss", customCss);
     submit(f, { method: "POST" });
   };
 
   const handleDiscard = (e: any) => {
     e.preventDefault();
     const initial = initialValuesRef.current;
-    setBadgeText(initial.badgeText);
+    setWelcomeHeading(initial.welcomeHeading);
     setCountdownText(initial.countdownText);
-    setStageLabelText(initial.stageLabelText);
-    setCustomJs(initial.customJs);
-    setCustomCss(initial.customCss);
-    setFontSize(initial.fontSize);
-    setFontWeight(initial.fontWeight);
+    setPublicShipping(initial.publicShipping);
+    setConflictStrategy(initial.conflictStrategy);
+    setBgColor(initial.bgColor);
+    setAccentColor(initial.accentColor);
+    setTextColor(initial.textColor);
+    setCardColor(initial.cardColor);
     setSalePriceColor(initial.salePriceColor);
     setOriginalPriceColor(initial.originalPriceColor);
-    setBadgeBg(initial.badgeBg);
-    setBadgeTextColor(initial.badgeTextColor);
-    setPadding(initial.padding);
-    setBorderRadius(initial.borderRadius);
-    setAlignment(initial.alignment);
-    setSliderItems(initial.sliderItems);
-    setCartMode(initial.cartMode);
-    setMemberLabel(initial.memberLabel);
-    setWelcomeHeading(initial.welcomeHeading);
-    setWelcomeEmphasis(initial.welcomeEmphasis);
-    setWelcomeSubHeading(initial.welcomeSubHeading);
-    setProductHeading(initial.productHeading);
-    setReserveButtonText(initial.reserveButtonText);
-    setButtonAction(initial.buttonAction);
-    setBgColor(initial.bgColor);
-    setTextColor(initial.textColor);
-    setBorderColor(initial.borderColor);
-    setCardColor(initial.cardColor);
-    setAccentColor(initial.accentColor);
     setMutedColor(initial.mutedColor);
+    setBorderColor(initial.borderColor);
+    setBorderRadius(initial.borderRadius);
+    setMaxWidth(initial.maxWidth);
     setPaddingTop(initial.paddingTop);
     setPaddingBottom(initial.paddingBottom);
-    setMaxWidth(initial.maxWidth);
-    setConflictStrategy(initial.conflictStrategy);
-    setPublicShipping(initial.publicShipping);
+    setCustomCss(initial.customCss);
     shopify.toast.show("Changes discarded");
   };
 
