@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
+import { reevaluateActiveCampaignConflicts } from "../services/conflict.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -19,7 +20,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = await getOrCreateShop(session.shop, session.accessToken || "");
   const formData = await request.formData();
 
@@ -48,6 +49,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       create: { shopId: shop.id, ...data },
       update: data,
     });
+
+    // Re-evaluate active campaign conflicts immediately on strategy update
+    await reevaluateActiveCampaignConflicts(shop.id, admin, data.conflictStrategy);
+
     return { success: true, settings: updated };
   } catch (err: any) {
     return { error: err.message || "Failed to update settings" };

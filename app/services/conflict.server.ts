@@ -144,3 +144,106 @@ export async function logConflict(
     },
   });
 }
+
+/**
+ * Re-evaluates all active campaign conflicts for a shop when conflict strategy changes.
+ */
+export async function reevaluateActiveCampaignConflicts(
+  shopId: string,
+  admin: any,
+  strategy: string
+) {
+  const { updateVariantPriceWithRetry } = await import("./shopify-price.server");
+
+  const activeSnapshots = await prisma.variantPriceSnapshot.findMany({
+    where: {
+      shopId,
+      campaign: { status: "ACTIVE" },
+    },
+    include: {
+      campaign: {
+        include: {
+          stages: { where: { status: "ACTIVE" } },
+        },
+      },
+    },
+  });
+
+  if (activeSnapshots.length === 0) return;
+
+  // Group snapshots by variantId
+  const variantMap = new Map<string, typeof activeSnapshots>();
+  for (const snap of activeSnapshots) {
+    const list = variantMap.get(snap.variantId) || [];
+    list.push(snap);
+    variantMap.set(snap.variantId, list);
+  }
+
+  for (const [variantId, snapshots] of variantMap.entries()) {
+    if (snapshots.length === 0) continue;
+
+    const originalPrice = snapshots[0].originalPrice;
+
+    const candidates = snapshots.map((snap) => {
+      const activeStage = snap.campaign.stages[0];
+      const discountValue = activeStage ? activeStage.discountValue : 0;
+      const discountType = snap.campaign.discountType;
+
+      let price = originalPrice;
+      if (discountType === "PERCENTAGE") {
+        price = originalPrice * (1 - discountValue / 100);
+      } else if (discountType === "FIX_AMOUNT") {
+        price = discountValue;
+      } else if (discountType === "FIXED_DISCOUNT") {
+        price = Math.max(0, originalPrice - discountValue);
+      }
+
+      return {
+        campaignId: snap.campaignId,
+        price,
+        discountValue,
+      };
+    });
+
+    if (strategy === "LOWEST_DISCOUNT") {
+      candidates.sort((a, b) => b.price - a.price);
+    } else {
+      candidates.sort((a, b) => a.price - b.price);
+    }
+
+    const bestCandidate = candidates[0];
+
+    // Update price on Shopify
+    await updateVariantPriceWithRetry(admin, variantId, bestCandidate.price, originalPrice);
+
+    // Update currentPrice in DB for all snapshots of this variant
+    for (const snap of snapshots) {
+      await prisma.variantPriceSnapshot.update({
+        where: {
+          shopId_campaignId_variantId: {
+            shopId,
+            campaignId: snap.campaignId,
+            variantId,
+          },
+        },
+        data: {
+          currentPrice: bestCandidate.price,
+        },
+      });
+    }
+
+    // Log conflict if there are multiple active candidate campaigns
+    if (snapshots.length > 1) {
+      const conflictingCampaignIds = candidates.map((c) => c.campaignId);
+      await logConflict(
+        shopId,
+        bestCandidate.campaignId,
+        variantId,
+        conflictingCampaignIds,
+        bestCandidate.campaignId,
+        bestCandidate.price,
+        originalPrice
+      );
+    }
+  }
+}
