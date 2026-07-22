@@ -90,14 +90,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
         const startOfToday = getStartOfTodayInTz(ianaTimezone);
 
-        const [activeCampaigns, scheduledCampaigns, productsAffected, priceUpdatesToday] = await Promise.all([
+        const [activeCampaigns, scheduledCampaigns, rawCampaignProducts, priceUpdatesToday] = await Promise.all([
           prisma.campaign.count({ where: { shopId: shop.id, status: "ACTIVE" } }),
           prisma.campaign.count({ where: { shopId: shop.id, status: "SCHEDULED" } }),
-          prisma.campaignProduct.count({ where: { campaign: { shopId: shop.id } } }),
+          prisma.campaignProduct.findMany({
+            where: { campaign: { shopId: shop.id } },
+            select: { targetValue: true },
+          }),
           prisma.activityLog.count({
             where: { shopId: shop.id, event: "PRICE_UPDATED", createdAt: { gte: startOfToday } },
           }),
         ]);
+
+        const uniqueProducts = new Set<string>();
+        for (const cp of rawCampaignProducts) {
+          if (cp.targetValue) {
+            cp.targetValue.split(",").forEach((id) => {
+              const trimmed = id.trim();
+              if (trimmed) uniqueProducts.add(trimmed);
+            });
+          }
+        }
+        const productsAffected = uniqueProducts.size;
 
         return { activeCampaigns, scheduledCampaigns, productsAffected, priceUpdatesToday };
       } catch (error) {
