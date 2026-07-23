@@ -7,6 +7,7 @@ import prisma, { getOrCreateShop } from "../db.server";
 import { CampaignStatus, StageStatus, LogEvent, JobStatus } from "@prisma/client";
 import { updateVariantPriceWithRetry, restoreCampaignVariantPrices } from "../services/shopify-price.server";
 import { processStageJob } from "../services/scheduler.server";
+import { checkPlanLimits, getShopifyPricingUrl } from "../services/billing.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -236,6 +237,23 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (intent === "RESUME") {
+    const variantCount = campaign.products.reduce((acc, p) => acc + (p.targetValue ? p.targetValue.split(",").filter(Boolean).length : 0), 0);
+    const stageCount = campaign.stages.length;
+    const planCheck = await checkPlanLimits(admin, shop.id, {
+      variantCount,
+      stageCount,
+      isEdit: true,
+      existingCampaignId: campaign.id,
+    });
+
+    if (!planCheck.allowed) {
+      return {
+        error: `Cannot activate campaign. ${planCheck.reason} Please upgrade your plan to activate this campaign.`,
+        planUpgradeRequired: true,
+        pricingUrl: getShopifyPricingUrl(session.shop),
+      };
+    }
+
     try {
       const now = new Date();
       let currentTime = new Date(now.getTime() + 1000); // 1-second offset to prevent microsecond differences
@@ -363,6 +381,35 @@ export default function CampaignDetail() {
 
       {/* Tab Bar */}
       <s-section>
+        {actionData?.planUpgradeRequired && (
+          <s-box paddingBlockEnd="base">
+            <s-card>
+              <s-box padding="base"  borderRadius="base">
+                <s-stack gap="base">
+                  <s-stack direction="inline" gap="small" alignItems="center">
+                    <s-icon type="alert-triangle" tone="caution" />
+                    <s-text>
+                      <strong>Plan Limit Exceeded</strong>
+                    </s-text>
+                  </s-stack>
+                  <s-text>{actionData.error}</s-text>
+                  <s-button
+                    variant="primary"
+                    onClick={(e: any) => {
+                      e.preventDefault();
+                      const targetUrl = (actionData as any).pricingUrl || "/app/pricing";
+                      if (window.top) window.top.location.href = targetUrl;
+                      else window.location.href = targetUrl;
+                    }}
+                  >
+                    Upgrade Plan to Activate
+                  </s-button>
+                </s-stack>
+              </s-box>
+            </s-card>
+          </s-box>
+        )}
+
         <s-stack direction="inline" justifyContent="space-between" alignItems="center">
           <s-stack direction="inline" gap="small" alignItems="center">
             {tabs.map((tab, i) => (

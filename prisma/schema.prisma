@@ -36,12 +36,17 @@ model Session {
 }
 
 model Shop {
-  id           String     @id @default(cuid())
-  domain       String     @unique
-  accessToken  String
-  createdAt    DateTime   @default(now())
-  campaigns    Campaign[]
-  themeSettings ThemeSettings?
+  id                   String         @id @default(cuid())
+  domain               String         @unique
+  accessToken          String
+  planName             String         @default("Free Plan")
+  planType             String         @default("FREE")
+  subscriptionStatus   String         @default("INACTIVE")
+  subscriptionId       String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @default(now()) @updatedAt
+  campaigns            Campaign[]
+  themeSettings        ThemeSettings?
 }
 
 model Campaign {

@@ -6,6 +6,7 @@ import { authenticate } from "../shopify.server";
 import prisma, { getOrCreateShop } from "../db.server";
 import { CampaignStatus } from "@prisma/client";
 import { processStageJob } from "../services/scheduler.server";
+import { checkPlanLimits, getShopifyPricingUrl } from "../services/billing.server";
 
 interface Phase {
   phaseTitle: string;
@@ -475,6 +476,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "Please select at least one product, collection, or tag" };
   }
 
+  // Enforce Shopify Billing Plan Limits (Allows saving as DRAFT if limit is exceeded)
+  const selectedVariantCount = (targetValue || "").split(",").filter(Boolean).length;
+  const planCheck = await checkPlanLimits(admin, shop.id, {
+    variantCount: selectedVariantCount,
+    stageCount: stagesData.length,
+    isEdit: !!id,
+    existingCampaignId: id || undefined,
+  });
+
+  const isOverPlanLimit = !planCheck.allowed;
+
   const startDates = stagesData.map((s) => new Date(s.startDate));
   const endDates = stagesData.map((s) => new Date(s.endDate));
   const campaignStartDate = new Date(Math.min(...startDates.map((d) => d.getTime())));
@@ -482,7 +494,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const now = new Date();
 
   let status: CampaignStatus = CampaignStatus.SCHEDULED;
-  if (id) {
+
+  if (isOverPlanLimit) {
+    status = CampaignStatus.DRAFT;
+  } else if (id) {
     const existingCampaign = await prisma.campaign.findUnique({
       where: { id },
       select: { status: true },
@@ -494,7 +509,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  if (status !== CampaignStatus.PAUSED && status !== CampaignStatus.DRAFT) {
+  if (!isOverPlanLimit && status !== CampaignStatus.PAUSED && status !== CampaignStatus.DRAFT) {
     if (campaignEndDate <= now) status = CampaignStatus.COMPLETED;
     else if (campaignStartDate <= now && campaignEndDate > now) status = CampaignStatus.ACTIVE;
   }
@@ -556,7 +571,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           },
         });
         let job = null;
-        if (new Date(s.endDate) > now) {
+        if (!isOverPlanLimit && new Date(s.endDate) > now) {
           const scheduledAt = new Date(s.startDate) <= now ? now : new Date(s.startDate);
           job = await tx.schedulerJob.create({ data: { shopId: shop.id, stageId: stage.id, scheduledAt, status: "PENDING" } });
         }
@@ -567,6 +582,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     const { campaign, createdStages } = result;
+
+    if (isOverPlanLimit) {
+      return {
+        success: true,
+        savedAsDraftOnly: true,
+        warning: `Campaign saved as DRAFT. ${planCheck.reason} Please upgrade your plan to activate/publish this campaign.`,
+        planUpgradeRequired: true,
+        pricingUrl: getShopifyPricingUrl(session.shop),
+        campaign,
+      };
+    }
 
     // ── Trigger immediate price updates for any stage that's active right now ──
     for (const item of createdStages) {
@@ -1195,6 +1221,35 @@ export default function AdditionalPage() {
       <s-page heading={campaignId ? "Edit Campaign" : "Create Campaign"}>
         <s-link slot="breadcrumb-actions" onClick={() => navigate(campaignId ? `/app/campaigns/${campaignId}` : "/app/campaigns")}>Campaigns</s-link>
       <s-section {...visibleStyle}>
+        {actionData?.warning && (
+          <s-box paddingBlockEnd="base">
+            <s-card>
+              <s-box padding="base" borderRadius="base">
+                <s-stack gap="base">
+                  <s-stack direction="inline" gap="small" alignItems="center">
+                    <s-icon type="alert-triangle" tone="caution" />
+                    <s-text>
+                      <strong>Saved as Draft (Plan Limit Reached)</strong>
+                    </s-text>
+                  </s-stack>
+                  <s-text>{actionData.warning}</s-text>
+                  <s-button
+                    variant="primary"
+                    onClick={(e: any) => {
+                      e.preventDefault();
+                      const targetUrl = actionData.pricingUrl || "/app/pricing";
+                      if (window.top) window.top.location.href = targetUrl;
+                      else window.location.href = targetUrl;
+                    }}
+                  >
+                    Upgrade Plan to Activate
+                  </s-button>
+                </s-stack>
+              </s-box>
+            </s-card>
+          </s-box>
+        )}
+
         <s-box paddingBlockEnd="base">
           <s-stack direction="inline" justifyContent="space-between" alignItems="center">
             <s-heading>Campaign Details</s-heading>

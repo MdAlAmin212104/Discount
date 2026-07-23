@@ -1,9 +1,10 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "bfa1f9b89497a51c4d111b5325c9c18e"
+client_id = "bf0c6035e1959808c722f0e13272a616"
+
 application_url = "https://example.com"
 embedded = true
-name = "Discount"
+name = "DiscountFlow – Smart Discount"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
