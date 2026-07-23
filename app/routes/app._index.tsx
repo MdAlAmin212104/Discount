@@ -24,7 +24,7 @@ function getStartOfTodayInTz(ianaTimezone: string): Date {
     });
     const offsetParts = offsetFormatter.formatToParts(new Date());
     const tzPart = offsetParts.find((p) => p.type === "timeZoneName")?.value || "GMT";
-    
+
     let offset = "+00:00";
     if (tzPart !== "GMT") {
       const cleaned = tzPart.replace("GMT", "");
@@ -270,7 +270,7 @@ function KPIsSkeleton() {
   return (
     <s-section>
       <s-grid gridTemplateColumns="repeat(auto-fit, minmax(220px, 1fr))" gap="base">
-        {[1, 2, 3, 4, 5].map((i) => (
+        {[1, 2, 3, 4].map((i) => (
           <s-card key={i}>
             <s-box padding="base">
               <s-stack gap="base">
@@ -295,7 +295,7 @@ function KPIsGrid({ stats }: { stats: any }) {
         title="Active Campaigns"
         value={stats.activeCampaigns}
         icon="play-circle"
-        subtext={`${stats.activeCampaigns} live campaigns`}
+        subtext={`live campaigns`}
         badgeText="Live"
         badgeTone="success"
       />
@@ -303,7 +303,7 @@ function KPIsGrid({ stats }: { stats: any }) {
         title="Scheduled"
         value={stats.scheduledCampaigns}
         icon="calendar-time"
-        subtext={`${stats.scheduledCampaigns} upcoming`}
+        subtext={`upcoming`}
         badgeText="Upcoming"
         badgeTone="info"
       />
