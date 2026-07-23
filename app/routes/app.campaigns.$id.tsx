@@ -237,10 +237,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (intent === "RESUME") {
-    const variantCount = campaign.products.reduce((acc, p) => acc + (p.targetValue ? p.targetValue.split(",").filter(Boolean).length : 0), 0);
     const stageCount = campaign.stages.length;
     const planCheck = await checkPlanLimits(admin, shop.id, {
-      variantCount,
+      targets: campaign.products,
       stageCount,
       isEdit: true,
       existingCampaignId: campaign.id,

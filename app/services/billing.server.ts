@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { fetchVariantsForTargets } from "./shopify-price.server";
 
 export interface PlanDetails {
   name: string;
@@ -91,30 +92,43 @@ export async function getActiveBillingPlan(admin: any, shopId: string): Promise<
   let detectedSubscriptionStatus: string = "INACTIVE";
 
   try {
-    const response = await admin.graphql(`#graphql
-      query getAppActiveSubscriptions {
-        appInstallation {
-          activeSubscriptions {
-            id
-            name
-            status
-            createdAt
+    const dbShop = await prisma.shop.findUnique({ where: { id: shopId } });
+    if (dbShop && dbShop.planName) {
+      detectedPlanName = normalizePlanName(dbShop.planName);
+      detectedSubscriptionStatus = dbShop.subscriptionStatus || "INACTIVE";
+      detectedSubscriptionId = dbShop.subscriptionId || null;
+    }
+  } catch (err) {
+    console.error("Error reading shop billing plan from DB:", err);
+  }
+
+  try {
+    if (admin) {
+      const response = await admin.graphql(`#graphql
+        query getAppActiveSubscriptions {
+          appInstallation {
+            activeSubscriptions {
+              id
+              name
+              status
+              createdAt
+            }
           }
         }
-      }
-    `);
-    const json = await response.json();
-    const activeSubscriptions = json.data?.appInstallation?.activeSubscriptions || [];
-    
-    // Find active subscription (ACTIVE or ACCEPTED)
-    const activeSub = activeSubscriptions.find(
-      (sub: any) => sub.status === "ACTIVE" || sub.status === "ACCEPTED"
-    );
+      `);
+      const json = await response.json();
+      const activeSubscriptions = json.data?.appInstallation?.activeSubscriptions || [];
+      
+      // Find active subscription (ACTIVE or ACCEPTED)
+      const activeSub = activeSubscriptions.find(
+        (sub: any) => sub.status === "ACTIVE" || sub.status === "ACCEPTED"
+      );
 
-    if (activeSub) {
-      detectedPlanName = normalizePlanName(activeSub.name);
-      detectedSubscriptionId = activeSub.id;
-      detectedSubscriptionStatus = activeSub.status || "ACTIVE";
+      if (activeSub) {
+        detectedPlanName = normalizePlanName(activeSub.name);
+        detectedSubscriptionId = activeSub.id;
+        detectedSubscriptionStatus = activeSub.status || "ACTIVE";
+      }
     }
   } catch (error) {
     console.error("Error fetching Shopify active subscriptions via GraphQL:", error);
@@ -162,7 +176,8 @@ export async function checkPlanLimits(
   admin: any,
   shopId: string,
   newCampaignData: {
-    variantCount: number;
+    variantCount?: number;
+    targets?: { targetType: string; targetValue: string }[];
     stageCount: number;
     isEdit?: boolean;
     existingCampaignId?: string;
@@ -170,7 +185,7 @@ export async function checkPlanLimits(
 ): Promise<{ allowed: boolean; reason?: string; currentPlan: PlanDetails }> {
   const plan = await getActiveBillingPlan(admin, shopId);
 
-  // 1. Check total campaign count limit (skip check if editing)
+  // 1. Check total campaign count limit (skip check if editing an existing campaign)
   if (!newCampaignData.isEdit) {
     const totalCampaigns = await prisma.campaign.count({
       where: { shopId },
@@ -179,13 +194,23 @@ export async function checkPlanLimits(
       const maxText = Number.isFinite(plan.maxCampaigns) ? plan.maxCampaigns : "unlimited";
       return {
         allowed: false,
-        reason: `Your current ${plan.name} allows a maximum of ${maxText} campaigns. You currently have ${totalCampaigns} campaigns. Please upgrade your plan to create more campaigns.`,
+        reason: `Your current ${plan.name} allows a maximum of ${maxText} campaign${plan.maxCampaigns === 1 ? "" : "s"}. You currently have ${totalCampaigns} campaign${totalCampaigns === 1 ? "" : "s"}. Please upgrade your plan to create more campaigns.`,
         currentPlan: plan,
       };
     }
   }
 
-  // 2. Check multi-stage campaign count limit (if campaign has > 1 stage)
+  // 2. Check maximum stages per campaign limit
+  if (newCampaignData.stageCount > plan.maxMultiStageCampaigns) {
+    const maxText = Number.isFinite(plan.maxMultiStageCampaigns) ? plan.maxMultiStageCampaigns : "unlimited";
+    return {
+      allowed: false,
+      reason: `Your current ${plan.name} allows a maximum of ${maxText} stage${plan.maxMultiStageCampaigns === 1 ? "" : "s"} per campaign. This campaign has ${newCampaignData.stageCount} stages. Please upgrade your plan to add more stages.`,
+      currentPlan: plan,
+    };
+  }
+
+  // 3. Check multi-stage campaign count limit (if campaign has > 1 stage)
   if (newCampaignData.stageCount > 1) {
     const existingIsMultiStage = newCampaignData.existingCampaignId
       ? (await prisma.campaignStage.count({ where: { campaignId: newCampaignData.existingCampaignId } })) > 1
@@ -206,22 +231,40 @@ export async function checkPlanLimits(
         const maxText = Number.isFinite(plan.maxMultiStageCampaigns) ? plan.maxMultiStageCampaigns : "unlimited";
         return {
           allowed: false,
-          reason: `Your current ${plan.name} allows a maximum of ${maxText} multi-stage campaigns. You currently have ${multiStageCampaignsCount} multi-stage campaigns. Please upgrade your plan to create more multi-stage campaigns.`,
+          reason: `Your current ${plan.name} allows a maximum of ${maxText} multi-stage campaign${plan.maxMultiStageCampaigns === 1 ? "" : "s"}. You currently have ${multiStageCampaignsCount} multi-stage campaign${multiStageCampaignsCount === 1 ? "" : "s"}. Please upgrade your plan to create more multi-stage campaigns.`,
           currentPlan: plan,
         };
       }
     }
   }
 
-  // 3. Check product variant count limit
-  if (newCampaignData.variantCount > plan.maxVariants) {
+  // 4. Check product variant count limit
+  let resolvedVariantCount = newCampaignData.variantCount;
+
+  // Resolve actual variants via Shopify GraphQL if targets provided and variantCount not explicitly set
+  if (
+    (resolvedVariantCount === undefined || resolvedVariantCount === null) &&
+    newCampaignData.targets &&
+    newCampaignData.targets.length > 0 &&
+    admin
+  ) {
+    try {
+      const resolved = await fetchVariantsForTargets(admin, newCampaignData.targets);
+      resolvedVariantCount = resolved.length;
+    } catch (e) {
+      console.error("Error resolving variants for plan limit check:", e);
+    }
+  }
+
+  if (resolvedVariantCount !== undefined && resolvedVariantCount > plan.maxVariants) {
     const maxText = Number.isFinite(plan.maxVariants) ? plan.maxVariants : "unlimited";
     return {
       allowed: false,
-      reason: `Your current ${plan.name} allows a maximum of ${maxText} product variants per campaign. You selected ${newCampaignData.variantCount} variants. Please upgrade your plan to include more variants.`,
+      reason: `Your current ${plan.name} allows a maximum of ${maxText} product variant${plan.maxVariants === 1 ? "" : "s"} per campaign. This campaign includes ${resolvedVariantCount} variant${resolvedVariantCount === 1 ? "" : "s"}. Please upgrade your plan to include more variants.`,
       currentPlan: plan,
     };
   }
 
   return { allowed: true, currentPlan: plan };
 }
+

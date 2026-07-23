@@ -477,9 +477,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   // Enforce Shopify Billing Plan Limits (Allows saving as DRAFT if limit is exceeded)
-  const selectedVariantCount = (targetValue || "").split(",").filter(Boolean).length;
   const planCheck = await checkPlanLimits(admin, shop.id, {
-    variantCount: selectedVariantCount,
+    targets: [{ targetType: targetType || "PRODUCT", targetValue: targetValue || "" }],
     stageCount: stagesData.length,
     isEdit: !!id,
     existingCampaignId: id || undefined,
